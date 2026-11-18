@@ -198,6 +198,7 @@ svg{display:block}
 .loc-title svg{width:17px;height:17px;color:var(--accent)}
 .loc-coord{font:13px/1.5 var(--mono);color:var(--text);word-break:break-word;margin:8px 0 2px}
 .loc-meta{font-size:12px;color:var(--muted);margin:0}
+.loc-why{font-size:12px;line-height:1.4;color:var(--accent);margin:6px 0 0}
 .loc-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .loc-actions .btn{margin-top:0;flex:1 1 42%;height:42px;font-size:14px}
 .loc-actions a.btn{display:flex;align-items:center;justify-content:center;text-decoration:none;color:var(--text)}
@@ -409,6 +410,7 @@ svg{display:block}
       </div>
       <div class="loc-coord" id="locCoord">—</div>
       <div class="loc-meta" id="locMeta"></div>
+      <div class="loc-why" id="locWhy" hidden></div>
       <div class="loc-actions">
         <button class="btn ghost" id="locGet" type="button">Standort abrufen</button>
         <a class="btn ghost" id="locMap" target="_blank" rel="noopener noreferrer" hidden>Auf der Karte</a>
@@ -1213,6 +1215,7 @@ svg{display:block}
       $("locCoord").textContent = fix5(j.lat) + ", " + fix5(j.lng);
       let m = j.src === "saved" ? ("„" + (j.label || "Zuhause") + "“") : (LOC_SRC[j.src] || "");
       if (j.src === "wifi" && j.acc > 0) m += " · auf etwa " + j.acc + " m genau";
+      if (j.src === "wifi" && j.aps > 0) m += " · aus " + j.aps + " WLANs";
       if (j.src === "ip" && j.city) m += " · " + j.city;
       if (j.ssid) m += " · Netz: " + j.ssid;
       $("locMeta").textContent = m;
@@ -1225,6 +1228,10 @@ svg{display:block}
         : (j.connected ? (j.ssid ? "Netz: " + j.ssid + " – kein Dienst hat den Ort erkannt" : "") : "Das Modul ist mit keinem WLAN verbunden");
       $("locMap").hidden = true;
     }
+    // Warum die genaue WLAN-Ortung nicht ging (dann kommt nur die grobe IP-Ortung oder nichts)
+    const why = locData && j.why ? "WLAN-Ortung ging nicht: " + j.why + (j.aps > 0 ? " · " + j.aps + (j.aps === 1 ? " WLAN" : " WLANs") + " gefunden" : "") : "";
+    $("locWhy").textContent = why;
+    $("locWhy").hidden = !why;
     $("locAdmin").hidden = !admin || !locData;
     $("locSaveBtn").hidden = !(admin && j.canSave && !j.saved);
     $("locForgetBtn").hidden = !(admin && j.saved);

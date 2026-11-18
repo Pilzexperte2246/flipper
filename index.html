@@ -132,7 +132,7 @@ svg{display:block}
   border:1px solid var(--line);font-size:14px;font-weight:550;color:var(--text);scroll-snap-align:start;white-space:nowrap}
 .chip:active{background:var(--surface2)}
 .chip svg{width:16px;height:16px;color:var(--accent)}
-.apps-label{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);padding:0 2px;margin-bottom:-6px}
+.apps-label{font-size:11px;line-height:1;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);padding:0 2px;margin:2px 0 4px}
 
 /* Toast */
 .toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 58px);transform:translate(-50%,-14px);opacity:0;pointer-events:none;
@@ -192,11 +192,9 @@ svg{display:block}
 .hostrow span{color:var(--muted);font-size:15px}
 .netstate{font-size:13px;line-height:1.45;padding:10px 12px;border-radius:11px;background:var(--bg);color:var(--muted);margin-bottom:12px}
 .netstate b{color:var(--text)}
-.loccard{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px 14px;margin-bottom:16px}
-.loccard .formmsg:empty{display:none}
-.loc-title{display:flex;align-items:center;gap:7px;font-weight:650;font-size:14px}
-.loc-title svg{width:17px;height:17px;color:var(--accent)}
-.loc-coord{font:13px/1.5 var(--mono);color:var(--text);word-break:break-word;margin:8px 0 2px}
+.locbox{background:var(--bg);border-radius:14px;padding:14px 14px 12px;margin-bottom:10px}
+.locbox .formmsg:empty{display:none}
+.loc-coord{font:600 19px/1.4 var(--mono);letter-spacing:-.01em;color:var(--text);word-break:break-word;margin:0 0 4px}
 .loc-meta{font-size:12px;color:var(--muted);margin:0}
 .loc-why{font-size:12px;line-height:1.4;color:var(--accent);margin:6px 0 0}
 .loc-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
@@ -252,6 +250,9 @@ svg{display:block}
 #hap{position:fixed;left:-100px;top:0;width:1px;height:1px;opacity:0;pointer-events:none}
 
 /* Querformat / breite Bildschirme */
+/* Kleine iPhones (SE, mini): etwas engere Abstände, damit alles auf einen Bildschirm passt */
+@media (orientation:portrait) and (max-height:720px){:root{--pad:min(74vw,330px,38vh)}.app{gap:10px}}
+@media (min-height:721px){#appsLabel{margin-top:10px}}
 @media (orientation:landscape) and (max-height:560px){
   :root{--pad:min(52vh,250px)}
   .app{max-width:none;display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);grid-template-rows:auto 1fr auto;column-gap:22px;row-gap:10px}
@@ -347,6 +348,9 @@ svg{display:block}
     <div class="meta">
       <div class="sig" id="sig" data-q="0" title="WLAN-Signal am Modul"><i></i><i></i><i></i><i></i><span id="rssi">–</span></div>
       <div class="bat" id="bat" title="Akku des Flippers"><span class="batbody"><span class="batfill" id="batFill"></span></span><span id="batText">–</span></div>
+      <button class="iconbtn" id="locBtn" aria-label="Standort des Moduls" hidden>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-5.6-6.5-10.5a6.5 6.5 0 0 1 13 0C18.5 15.4 12 21 12 21z"/><circle cx="12" cy="10.5" r="2.4"/></svg>
+      </button>
       <button class="iconbtn" id="fileBtn" aria-label="Datei an den Flipper senden">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="M7 8l5-5 5 5"/><path d="M4 15v3a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-3"/></svg>
       </button>
@@ -403,35 +407,6 @@ svg{display:block}
   </section>
 
   <div class="bottom">
-    <div class="loccard" id="locCard" hidden>
-      <div class="loc-title">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2.4"/></svg>
-        Standort des Moduls
-      </div>
-      <div class="loc-coord" id="locCoord">—</div>
-      <div class="loc-meta" id="locMeta"></div>
-      <div class="loc-why" id="locWhy" hidden></div>
-      <div class="loc-actions">
-        <button class="btn ghost" id="locGet" type="button">Standort abrufen</button>
-        <a class="btn ghost" id="locMap" target="_blank" rel="noopener noreferrer" hidden>Auf der Karte</a>
-      </div>
-      <div class="loc-actions" id="locAdmin" hidden>
-        <button class="btn ghost" id="locSaveBtn" type="button" hidden>Hier ist „Zuhause“</button>
-        <button class="btn ghost" id="locForgetBtn" type="button" hidden>„Zuhause“ löschen</button>
-      </div>
-      <div class="loc-form" id="locForm" hidden>
-        <div class="field"><label for="locLabel">Name des Orts</label><input id="locLabel" maxlength="24" autocomplete="off" value="Zuhause"></div>
-        <div class="row2">
-          <div class="field"><label for="locLat">Breite</label><input id="locLat" inputmode="decimal" autocomplete="off" placeholder="52.516275"></div>
-          <div class="field"><label for="locLng">Länge</label><input id="locLng" inputmode="decimal" autocomplete="off" placeholder="13.377704"></div>
-        </div>
-        <div class="loc-actions">
-          <button class="btn ghost" id="locGps" type="button">Mein GPS</button>
-          <button class="btn primary" id="locSaveGo" type="button">Speichern</button>
-        </div>
-      </div>
-      <p class="formmsg" id="locMsg"></p>
-    </div>
     <div class="apps-label" id="favsLabel">Karten</div>
     <nav class="apps" id="favs"></nav>
     <div class="apps-label" id="appsLabel">App starten</div>
@@ -473,6 +448,38 @@ svg{display:block}
   <div class="cardlist" id="cardList"></div>
   <p class="note">Antippen = Flipper emuliert die Karte. ☆ = als Schnellwahl auf den Hauptbildschirm.</p>
   <button class="btn ghost" id="cardClose">Schließen</button>
+</section>
+
+<section class="sheet" id="locSheet" aria-label="Standort des Moduls">
+  <div class="grabber"></div>
+  <div class="sheet-head"><h2>Standort des Moduls</h2></div>
+  <div class="locbox">
+    <div class="loc-coord" id="locCoord">—</div>
+    <div class="loc-meta" id="locMeta"></div>
+    <div class="loc-why" id="locWhy" hidden></div>
+    <div class="loc-actions">
+      <button class="btn ghost" id="locGet" type="button">Standort abrufen</button>
+      <a class="btn ghost" id="locMap" target="_blank" rel="noopener noreferrer" hidden>Auf der Karte</a>
+    </div>
+    <div class="loc-actions" id="locAdmin" hidden>
+      <button class="btn ghost" id="locSaveBtn" type="button" hidden>Hier ist „Zuhause“</button>
+      <button class="btn ghost" id="locForgetBtn" type="button" hidden>„Zuhause“ löschen</button>
+    </div>
+    <div class="loc-form" id="locForm" hidden>
+      <div class="field"><label for="locLabel">Name des Orts</label><input id="locLabel" maxlength="24" autocomplete="off" value="Zuhause"></div>
+      <div class="row2">
+        <div class="field"><label for="locLat">Breite</label><input id="locLat" inputmode="decimal" autocomplete="off" placeholder="52.516275"></div>
+        <div class="field"><label for="locLng">Länge</label><input id="locLng" inputmode="decimal" autocomplete="off" placeholder="13.377704"></div>
+      </div>
+      <div class="loc-actions">
+        <button class="btn ghost" id="locGps" type="button">Mein GPS</button>
+        <button class="btn primary" id="locSaveGo" type="button">Speichern</button>
+      </div>
+    </div>
+    <p class="formmsg" id="locMsg"></p>
+  </div>
+  <p class="note" id="locNote">Das Modul hat kein GPS: Es fragt einen Ortungsdienst nach den WLANs in seiner Nähe. Dafür sucht es kurz die Umgebung ab – das Bild kann dabei ein paar Sekunden stocken.</p>
+  <button class="btn ghost" id="locClose" type="button">Schließen</button>
 </section>
 
 <section class="sheet" id="fileSheet" aria-label="Datei an den Flipper">
@@ -1149,8 +1156,11 @@ svg{display:block}
     });
     if (!may(P.admin)) $("fwSection").hidden = true;
     $("rmtSec").hidden = !(may(P.admin) ? rmtAvail : me.rmt && may(P.remote));
-    $("locCard").hidden = !may(P.loc);
-    if (!may(P.loc)) { locData = null; $("locForm").hidden = true; }
+    $("locBtn").hidden = !may(P.loc);
+    if (!may(P.loc)) {
+      locData = null; $("locForm").hidden = true;
+      if ($("locSheet").classList.contains("open")) closeSheets();
+    }
     if ((!may(P.files) && $("fileSheet").classList.contains("open")) || (!may(P.cards) && $("cardSheet").classList.contains("open"))) closeSheets();
     renderAccess();
   }
@@ -1185,7 +1195,7 @@ svg{display:block}
   /* ---------- Standort des Moduls ----------
      Das Modul hat kein GPS: Es bestimmt seinen Ort über einen WLAN-Ortungsdienst, grob über die
      IP-Adresse oder aus einem fest hinterlegten Heim-Netz. Die App zeigt nur das Ergebnis. */
-  let locData = null, locBusy = false;
+  let locData = null, locBusy = false, locAt = 0;
   const LOC_SRC = {wifi: "WLAN-Ortung", ip: "ungefähr (IP-Ortung)", saved: "gespeicherter Ort"};
   const fix5 = (x) => (Math.round(x * 1e5) / 1e5).toFixed(5);
   async function loadLocation() {
@@ -1198,6 +1208,7 @@ svg{display:block}
       const r = await fetch("/api/location", {cache: "no-store"});
       if (!r.ok) throw 0;
       locData = await r.json();
+      locAt = Date.now();
     } catch (e) {
       locData = null;
       $("locCoord").textContent = "Standort gerade nicht abrufbar";
@@ -1251,6 +1262,14 @@ svg{display:block}
     {enableHighAccuracy: true, timeout: 8000, maximumAge: 0});
   }
   $("locGet").addEventListener("click", loadLocation);
+  // Pin oben: Blatt öffnen und gleich orten (älter als eine Minute = neu abrufen)
+  $("locBtn").addEventListener("click", () => {
+    haptic(); releaseAll();
+    openSheetEl("locSheet");
+    renderLocation();
+    if (!locData || Date.now() - locAt > 60000) loadLocation();
+  });
+  $("locClose").addEventListener("click", closeSheets);
   $("locMap").addEventListener("click", e => { if ($("locMap").hidden) e.preventDefault(); });
   $("locSaveBtn").addEventListener("click", () => {
     const j = locData || {};

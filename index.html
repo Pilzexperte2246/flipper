@@ -1,0 +1,2659 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Flipper">
+<meta name="theme-color" content="#141210">
+<meta name="format-detection" content="telephone=no">
+<link rel="apple-touch-icon" href="/icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<title>Flipper Remote</title>
+<style>
+:root{
+  --bg:#141210; --surface:#1d1a17; --surface2:#28241f; --surface3:#342f29;
+  --line:rgba(255,240,225,.08); --text:#f4eee7; --muted:#9c9187; --faint:#6d645c;
+  --accent:#ff8a1f; --accent-soft:rgba(255,138,31,.16);
+  --lcd-off:#ff8c26; --lcd-on:#1c0e02;
+  --good:#5fd38a; --warn:#f2c14e; --bad:#ff5d4f;
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --pad:min(74vw,330px,40vh);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;
+  overscroll-behavior:none;touch-action:manipulation;-webkit-text-size-adjust:100%}
+body{overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
+svg{display:block}
+
+.app{height:100dvh;display:flex;flex-direction:column;gap:14px;
+  padding:calc(env(safe-area-inset-top) + 8px) calc(env(safe-area-inset-right) + 16px) calc(env(safe-area-inset-bottom) + 12px) calc(env(safe-area-inset-left) + 16px);
+  max-width:560px;margin:0 auto}
+
+/* Kopfzeile */
+.top{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:40px}
+.conn{display:flex;align-items:center;gap:9px;min-width:0}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--faint);flex:none;transition:background .3s}
+.conn[data-s="ok"] .dot{background:var(--good);box-shadow:0 0 10px rgba(95,211,138,.6)}
+.conn[data-s="busy"] .dot{background:var(--warn);animation:blink 1s infinite}
+.conn[data-s="bad"] .dot{background:var(--bad)}
+@keyframes blink{50%{opacity:.35}}
+.conn-text{display:flex;flex-direction:column;min-width:0;line-height:1.15}
+.conn-name{font-weight:650;font-size:16px;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.conn-state{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meta{display:flex;align-items:center;gap:10px;flex:none}
+.sig{display:flex;align-items:flex-end;gap:2px;height:16px}
+.sig i{width:4px;border-radius:1.5px;background:var(--surface3)}
+.sig i:nth-child(1){height:5px}.sig i:nth-child(2){height:8px}.sig i:nth-child(3){height:12px}.sig i:nth-child(4){height:16px}
+.sig[data-q="1"] i:nth-child(-n+1),.sig[data-q="2"] i:nth-child(-n+2),.sig[data-q="3"] i:nth-child(-n+3),.sig[data-q="4"] i:nth-child(-n+4){background:var(--text)}
+.sig[data-q="1"] i:nth-child(1){background:var(--bad)}
+.sig span{font:500 11px var(--mono);color:var(--muted);margin-left:5px;align-self:center}
+.bat{display:flex;align-items:center;gap:5px;font:500 12px var(--mono);color:var(--muted)}
+.batbody{position:relative;width:22px;height:11px;border:1.5px solid var(--muted);border-radius:3px;padding:1px}
+.batbody::after{content:"";position:absolute;right:-4px;top:2.5px;width:2px;height:4px;border-radius:0 1px 1px 0;background:var(--muted)}
+.batfill{display:block;height:100%;width:0;border-radius:1px;background:var(--text);transition:width .4s}
+.bat.low .batfill{background:var(--bad)}
+.bat.chg .batfill{background:var(--good)}
+.iconbtn{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:var(--surface)}
+.iconbtn:active{background:var(--surface2)}
+
+/* Display */
+.screenwrap{display:flex;flex-direction:column;gap:8px}
+.bezel{background:linear-gradient(180deg,#2b2621,#1f1b18);border-radius:22px;padding:14px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 10px 30px rgba(0,0,0,.35)}
+.bezel{position:relative}
+/* Status-LED des Flippers (nachgebildet) – sitzt wie am Gerät im Rahmen links oben */
+.fled{position:absolute;top:0;left:12px;width:40px;height:14px;padding:0;border:0;background:none;display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.fled i{width:9px;height:9px;border-radius:50%;background:#463d36;box-shadow:inset 0 0 0 1px rgba(0,0,0,.45),0 0 0 1px rgba(255,255,255,.05);transition:background .25s,box-shadow .25s}
+.fled[data-c=red] i{background:#ff4a3d;box-shadow:0 0 5px #ff3b30,0 0 16px rgba(255,59,48,.8)}
+.fled[data-c=green] i{background:#43e070;box-shadow:0 0 5px #3ddc68,0 0 16px rgba(61,220,104,.8)}
+.fled[data-c=magenta] i{background:#ff3bdc;box-shadow:0 0 5px #ff2bd6,0 0 16px rgba(255,43,214,.8);animation:fledblink .5s steps(1,end) infinite}
+@keyframes fledblink{0%{opacity:1}30%{opacity:.12}}
+.lcd{position:relative;border-radius:8px;overflow:hidden;background:var(--lcd-off);aspect-ratio:2/1;
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.25),inset 0 0 22px rgba(120,40,0,.25)}
+.lcd.vertical{aspect-ratio:1/2;max-height:46vh;margin:0 auto}
+.lcd canvas{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges;transition:opacity .3s}
+.lcd .grid{position:absolute;inset:0;pointer-events:none;opacity:.5;
+  background-image:linear-gradient(to right,rgba(255,170,90,.18) 1px,transparent 1px),linear-gradient(to bottom,rgba(255,170,90,.18) 1px,transparent 1px);
+  background-size:calc(100% / 128) calc(100% / 64)}
+.lcd.vertical .grid{background-size:calc(100% / 64) calc(100% / 128)}
+.lcd.dim canvas{opacity:.22}
+/* Während einer Karten-Emulation ruht der Bildschirm-Stream (schützt den Flipper) */
+.pausebadge{position:absolute;left:50%;bottom:7%;transform:translateX(-50%);display:none;white-space:nowrap;
+  background:rgba(20,16,13,.8);color:#ffe2c4;font:600 12px var(--sans);padding:5px 11px;border-radius:999px;pointer-events:none}
+.lcd.emupause:not(.dim) canvas{opacity:.35}
+.lcd.emupause:not(.dim) .pausebadge{display:block}
+.lcd.dim .overlay{background:rgba(255,140,38,.55)}
+.overlay{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+  padding:14px 18px;text-align:center;color:var(--lcd-on)}
+.lcd.dim .overlay{display:flex}
+.ov-title{font-weight:700;font-size:17px;letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
+.ov-text{font-size:12.5px;line-height:1.35;max-width:34ch;opacity:.85}
+.spin{width:14px;height:14px;border-radius:50%;border:2px solid rgba(28,14,2,.25);border-top-color:var(--lcd-on);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.stats{display:flex;justify-content:space-between;gap:8px;padding:0 4px;font:500 11px var(--mono);color:var(--faint)}
+.stats .warn{color:var(--warn)}
+
+/* Steuerung */
+.controls{flex:1;display:grid;grid-template-columns:1fr var(--pad) 1fr;align-content:center;min-height:calc(var(--pad) + 10px)}
+.pad{grid-column:2;position:relative;width:var(--pad);aspect-ratio:1;border-radius:50%;overflow:hidden;
+  background:radial-gradient(circle at 50% 35%,#3a342e,#25211d 70%);
+  box-shadow:inset 0 2px 0 rgba(255,255,255,.07),inset 0 -6px 18px rgba(0,0,0,.35),0 12px 30px rgba(0,0,0,.4)}
+.dir{position:absolute;inset:0;display:flex;color:#d9d0c6;touch-action:none;transition:background .08s}
+.dir.up{clip-path:polygon(50% 50%,0 0,100% 0);align-items:flex-start;justify-content:center;padding-top:11%}
+.dir.right{clip-path:polygon(50% 50%,100% 0,100% 100%);align-items:center;justify-content:flex-end;padding-right:11%}
+.dir.down{clip-path:polygon(50% 50%,100% 100%,0 100%);align-items:flex-end;justify-content:center;padding-bottom:11%}
+.dir.left{clip-path:polygon(50% 50%,0 100%,0 0);align-items:center;justify-content:flex-start;padding-left:11%}
+.dir svg{width:26px;height:26px}
+.dir.pressed{background:var(--accent-soft);color:var(--accent)}
+.dir.long{background:rgba(255,138,31,.3)}
+.pad .ok{position:absolute;left:50%;top:50%;width:38%;height:38%;transform:translate(-50%,-50%);border-radius:50%;touch-action:none;
+  background:radial-gradient(circle at 50% 30%,#4a423a,#332d27);box-shadow:0 0 0 7px rgba(0,0,0,.22),inset 0 2px 0 rgba(255,255,255,.08);
+  display:grid;place-items:center;font-weight:700;font-size:15px;letter-spacing:.06em;color:#d9d0c6;transition:background .08s}
+.pad .ok.pressed{background:radial-gradient(circle at 50% 30%,#ffa04a,var(--accent));color:#2a1300}
+.pad .ok.long{box-shadow:0 0 0 7px rgba(255,138,31,.35)}
+.backwrap{grid-column:3;grid-row:1;align-self:end;justify-self:start;margin-left:-30px;display:flex;flex-direction:column;align-items:center;gap:5px;position:relative;z-index:2}
+.back{width:64px;height:64px;border-radius:50%;display:grid;place-items:center;touch-action:none;color:#d9d0c6;
+  background:radial-gradient(circle at 50% 30%,#3d3730,#2a2520);box-shadow:inset 0 2px 0 rgba(255,255,255,.07),0 8px 20px rgba(0,0,0,.35);transition:background .08s}
+.back svg{width:26px;height:26px}
+.back.pressed{background:radial-gradient(circle at 50% 30%,#ffa04a,var(--accent));color:#2a1300}
+.back.long{box-shadow:0 0 0 5px rgba(255,138,31,.35)}
+.backwrap small{font-size:11px;color:var(--faint)}
+
+/* App-Schnellstart */
+.apps{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 -16px;padding:2px 16px;scroll-snap-type:x proximity}
+.apps::-webkit-scrollbar{display:none}
+.chip{flex:none;display:flex;align-items:center;gap:7px;height:38px;padding:0 14px;border-radius:19px;background:var(--surface);
+  border:1px solid var(--line);font-size:14px;font-weight:550;color:var(--text);scroll-snap-align:start;white-space:nowrap}
+.chip:active{background:var(--surface2)}
+.chip svg{width:16px;height:16px;color:var(--accent)}
+.apps-label{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);padding:0 2px;margin-bottom:-6px}
+
+/* Toast */
+.toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 58px);transform:translate(-50%,-14px);opacity:0;pointer-events:none;
+  background:#f4eee7;color:#1a1612;font-size:14px;font-weight:550;padding:10px 16px;border-radius:14px;max-width:calc(100vw - 40px);
+  text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.45);transition:opacity .2s,transform .2s;z-index:30}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.toast.err{background:var(--bad);color:#fff}
+
+/* Einstellungen */
+.sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:opacity .25s;z-index:40}
+.sheet{position:fixed;left:0;right:0;bottom:0;max-height:88dvh;overflow-y:auto;-webkit-overflow-scrolling:touch;z-index:41;
+  background:var(--surface);border-radius:22px 22px 0 0;padding:10px 20px calc(env(safe-area-inset-bottom) + 20px);
+  transform:translateY(105%);transition:transform .3s cubic-bezier(.2,.8,.2,1);max-width:560px;margin:0 auto;-webkit-user-select:text;user-select:text}
+.sheet-open .sheet-bg{opacity:1;pointer-events:auto}
+.sheet.open{transform:none}
+.grabber{width:38px;height:5px;border-radius:3px;background:var(--surface3);margin:0 auto 14px}
+.sheet h2{font-size:20px;letter-spacing:-.02em;margin-bottom:4px}
+.sheet h3{font-size:12px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin:22px 0 8px}
+.sheet p.note{font-size:13px;color:var(--muted);line-height:1.4}
+.field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
+.field label{font-size:13px;color:var(--muted)}
+.field input,.field select{font:16px var(--sans);color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:11px;padding:11px 12px;width:100%;-webkit-appearance:none;appearance:none}
+.field input:focus,.field select:focus{outline:none;border-color:var(--accent)}
+.field select:disabled{opacity:.45}
+.unitrow{display:flex;gap:8px}
+.unitrow input{flex:1;min-width:0}
+.unitrow select,.unitrow span{flex:none;width:auto}
+.unitrow span{align-self:center;color:var(--muted);font-size:15px;padding:0 4px}
+.field select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%239c9187' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.toggle{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);font-size:15px}
+.toggle small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.toggle input{width:46px;height:28px;-webkit-appearance:none;appearance:none;border-radius:14px;background:var(--surface3);position:relative;flex:none;transition:background .2s}
+.toggle input::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:transform .2s}
+.toggle input:checked{background:var(--accent)}
+.toggle input:checked::after{transform:translateX(18px)}
+.btn{display:block;width:100%;height:48px;border-radius:13px;font-weight:650;font-size:16px;margin-top:10px}
+.btn.primary{background:var(--accent);color:#211000}
+.btn.ghost{background:var(--surface2)}
+.btn.danger{background:transparent;color:var(--bad);border:1px solid rgba(255,93,79,.35)}
+.btn:disabled{opacity:.5}
+.offbtn{display:flex;align-items:center;justify-content:center;gap:9px}
+.info{font:12px/1.6 var(--mono);color:var(--muted);background:var(--bg);border-radius:11px;padding:10px 12px;white-space:pre-wrap;word-break:break-word}
+.formmsg{font-size:13px;margin-top:8px;min-height:18px;color:var(--muted)}
+.formmsg.err{color:var(--bad)}
+.formmsg.ok{color:var(--good)}
+.inrow{display:flex;gap:8px}
+.inrow input{flex:1;min-width:0}
+.btn.small{width:auto;height:auto;margin:0;padding:0 16px;font-size:15px;background:var(--surface2);border-radius:11px;flex:none}
+.scanlist{display:flex;flex-direction:column;gap:2px;margin:-4px 0 12px;background:var(--bg);border-radius:11px;padding:4px;max-height:240px;overflow-y:auto}
+.scanlist[hidden]{display:none}
+.scanlist button{display:flex;justify-content:space-between;align-items:center;gap:10px;text-align:left;padding:10px;border-radius:8px;font-size:15px}
+.scanlist button:active{background:var(--surface2)}
+.scanlist small{color:var(--muted);font:12px var(--mono);flex:none}
+.hostrow{display:flex;align-items:center;gap:8px}
+.hostrow input{flex:1;min-width:0}
+.hostrow span{color:var(--muted);font-size:15px}
+.netstate{font-size:13px;line-height:1.45;padding:10px 12px;border-radius:11px;background:var(--bg);color:var(--muted);margin-bottom:12px}
+.netstate b{color:var(--text)}
+.netstate.ok{color:var(--good)}
+.netlist{display:flex;flex-direction:column;gap:2px;background:var(--bg);border-radius:11px;padding:4px;margin-bottom:12px}
+.netlist:empty{display:none}
+.netrow{display:flex;align-items:center;gap:8px;padding:7px 6px 7px 10px;border-radius:8px}
+.netinfo{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.netinfo b{font-size:15px;font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.netinfo small{font-size:12px;color:var(--muted)}
+.netinfo small .on{color:var(--good)}
+.netinfo small .new{color:var(--accent)}
+.netdel{flex:none;width:34px;height:34px;border-radius:9px;color:var(--muted);font-size:22px;line-height:1}
+.netdel:active{background:var(--surface2)}
+.mini{flex:none;height:32px;padding:0 12px;border-radius:9px;background:var(--surface2);font-size:14px;font-weight:600}
+.mini.ok{background:var(--accent);color:#211000}
+
+/* Datei an den Flipper */
+.meta .iconbtn{flex:none}
+.folderchips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:0 -20px 8px;padding:0 20px}
+.folderchips::-webkit-scrollbar{display:none}
+.folderchips button{flex:none;height:32px;padding:0 12px;border-radius:16px;background:var(--bg);border:1px solid var(--line);font-size:13px;font-weight:600;color:var(--muted)}
+.folderchips button.on{border-color:var(--accent);color:var(--text);background:var(--accent-soft)}
+.crumbrow{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.crumb{flex:1;min-width:0;font:13px var(--mono);color:var(--text);background:var(--bg);border-radius:9px;padding:8px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:left}
+.folderlist{max-height:200px;overflow-y:auto}
+.folderlist .netrow{cursor:pointer}
+.folderlist .netrow:active{background:var(--surface2)}
+.folderico{flex:none;color:var(--accent)}
+.nameedit{flex:1;min-width:0;font:15px var(--sans);font-weight:550;color:var(--text);background:transparent;border:0;border-bottom:1px dashed var(--line);padding:2px 0;border-radius:0}
+.nameedit:focus{outline:none;border-bottom-color:var(--accent)}
+.netinfo small .bad{color:var(--bad)}
+.progress{height:6px;border-radius:3px;background:var(--bg);overflow:hidden;margin:12px 0 4px}
+.progress[hidden]{display:none}
+.progress i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+
+/* Gerät nicht freigegeben */
+.lock{position:fixed;inset:0;z-index:60;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px 20px calc(env(safe-area-inset-bottom) + 24px)}
+.lock[hidden]{display:none}
+.lockcard{width:100%;max-width:420px}
+.lockicon{width:56px;height:56px;border-radius:16px;background:var(--surface);display:grid;place-items:center;color:var(--accent);margin-bottom:16px}
+.lockcard h2{font-size:22px;margin-bottom:8px}
+.lockcard p.note{font-size:14px;color:var(--muted);line-height:1.45;margin-bottom:18px}
+.lockcard .formmsg{font-size:14px;line-height:1.45;margin-top:12px}
+
+/* iOS-Haptik (Schalter-Trick) */
+#hap{position:fixed;left:-100px;top:0;width:1px;height:1px;opacity:0;pointer-events:none}
+
+/* Querformat / breite Bildschirme */
+@media (orientation:landscape) and (max-height:560px){
+  :root{--pad:min(52vh,250px)}
+  .app{max-width:none;display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);grid-template-rows:auto 1fr auto;column-gap:22px;row-gap:10px}
+  .top{grid-column:1 / -1}
+  .screenwrap{grid-column:1;grid-row:2;justify-content:center}
+  .lcd.vertical{max-height:58vh}
+  .controls{grid-column:2;grid-row:2 / 4;min-height:0}
+  .apps-label{display:none}
+  .bottom{grid-column:1;grid-row:3;display:flex;flex-direction:column;gap:8px;min-width:0}
+  .screenwrap{min-height:0;gap:6px}
+  .bezel{width:min(100%,calc((100dvh - 250px) * 2 + 28px));margin:0 auto;padding:12px}
+  .emubar,.lowbar,.pairbar{padding:6px 8px 6px 12px}
+  .emu-stop{height:30px}
+  .apps{margin:0;padding:2px 0}
+}
+
+/* Karten (NFC / RFID / iButton) */
+.emubar{display:flex;align-items:center;gap:12px;padding:10px 10px 10px 14px;border-radius:16px;background:var(--accent-soft);border:1px solid rgba(255,138,31,.35)}
+.emubar[hidden]{display:none}
+.row[hidden],.field[hidden]{display:none}
+.emu-dot{width:10px;height:10px;border-radius:50%;background:var(--accent);flex:none;animation:pulse 1.4s ease-in-out infinite}
+.emubar.starting .emu-dot{background:var(--warn)}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,138,31,.6)}50%{box-shadow:0 0 0 7px rgba(255,138,31,0)}}
+.emu-text{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.2}
+.emu-text b{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.emu-text small{font-size:12px;color:var(--muted)}
+.emu-stop{flex:none;height:36px;padding:0 16px;border-radius:12px;background:var(--accent);color:#211000;font-weight:700;font-size:14px}
+/* Schwacher Flipper-Akku: Countdown bis zum Ausschalten */
+.lowbar{display:flex;align-items:center;gap:12px;padding:10px 10px 10px 14px;border-radius:16px;background:rgba(255,93,79,.13);border:1px solid rgba(255,93,79,.42)}
+.lowbar[hidden]{display:none}
+.lowbar svg{flex:none;color:var(--bad)}
+.lowbar .emu-stop{background:var(--surface3);color:var(--text)}
+/* Neues Gerät möchte steuern */
+.pairbar{display:flex;align-items:center;gap:10px;padding:10px 10px 10px 14px;border-radius:16px;background:var(--surface);border:1px solid var(--line)}
+.pairbar[hidden]{display:none}
+.pairbar svg{flex:none;color:var(--accent)}
+.pairbar .emu-stop.deny{background:var(--surface3);color:var(--text)}
+.chip.fav{max-width:200px}
+.chip.fav span{overflow:hidden;text-overflow:ellipsis}
+.chip.fav.active{border-color:var(--accent);background:var(--accent-soft)}
+.chip.all{color:var(--muted)}
+.chip .kind{font:700 10px var(--mono);color:var(--accent);letter-spacing:.02em}
+.sheet-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:4px;border-radius:12px;background:var(--bg);margin-bottom:10px}
+.seg button{height:34px;border-radius:9px;font-size:14px;font-weight:600;color:var(--muted)}
+.seg button.on{background:var(--surface3);color:var(--text)}
+.search{font:16px var(--sans);color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:11px;padding:10px 12px;width:100%;margin-bottom:8px;-webkit-appearance:none;appearance:none}
+.search:focus{outline:none;border-color:var(--accent)}
+.cardlist{display:flex;flex-direction:column;min-height:120px;margin-bottom:8px}
+.card-row{display:flex;align-items:center;gap:4px;border-bottom:1px solid var(--line)}
+.card-main{flex:1;min-width:0;display:flex;align-items:center;gap:12px;padding:12px 4px;text-align:left}
+.card-main:active{background:var(--surface2)}
+.card-ico{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:var(--bg);color:var(--accent);font:700 10px var(--mono);flex:none}
+.card-txt{min-width:0;display:flex;flex-direction:column}
+.card-txt b{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-txt small{font-size:12px;color:var(--faint)}
+.card-row.active .card-ico{background:var(--accent);color:#211000}
+.card-row.active .card-txt small{color:var(--accent)}
+.star{width:44px;height:44px;flex:none;display:grid;place-items:center;color:var(--faint);font-size:22px}
+.star.on{color:var(--accent)}
+.cardmsg{padding:22px 8px;text-align:center;color:var(--muted);font-size:14px;line-height:1.45}
+.cardmsg .spin{display:inline-block;vertical-align:-2px;margin-right:6px;border-color:rgba(255,255,255,.2);border-top-color:var(--text)}
+/* Rollen */
+[hidden]{display:none!important}
+.controls.nokeys .pad,.controls.nokeys .backwrap{opacity:.3;filter:saturate(.3)}
+.conn-state.warn{color:var(--warn)}
+.rolesel{flex:none;max-width:124px;height:32px;font:600 14px var(--sans);color:var(--text);background:var(--surface2);border:0;border-radius:9px;padding:0 24px 0 10px;
+  -webkit-appearance:none;appearance:none;text-overflow:ellipsis;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%239c9187' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 9px center}
+.rolesel:focus{outline:2px solid var(--accent)}
+.mini.renew{width:34px;padding:0;font-size:17px;line-height:1}
+.sheet h4{font-size:13px;font-weight:650;color:var(--text);margin:18px 0 8px}
+.tag{display:inline-block;font-size:11px;font-weight:650;color:var(--accent);background:var(--accent-soft);border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:1px}
+.roleedit{background:var(--bg);border-radius:12px;padding:12px 12px 4px;margin-bottom:12px;border:1px solid var(--line)}
+.roleedit .toggle{font-size:14px}
+.roleedit .field{margin-top:10px}
+.rowbtns{display:flex;gap:10px}
+.rowbtns .btn{flex:1}
+.netinfo small .warn{color:var(--warn)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<main class="app" id="app">
+  <header class="top">
+    <div class="conn" id="conn" data-s="busy">
+      <span class="dot"></span>
+      <div class="conn-text">
+        <span class="conn-name" id="connName">Flipper</span>
+        <span class="conn-state" id="connState">Verbinde mit Modul…</span>
+      </div>
+    </div>
+    <div class="meta">
+      <div class="sig" id="sig" data-q="0" title="WLAN-Signal am Modul"><i></i><i></i><i></i><i></i><span id="rssi">–</span></div>
+      <div class="bat" id="bat" title="Akku des Flippers"><span class="batbody"><span class="batfill" id="batFill"></span></span><span id="batText">–</span></div>
+      <button class="iconbtn" id="fileBtn" aria-label="Datei an den Flipper senden">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="M7 8l5-5 5 5"/><path d="M4 15v3a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-3"/></svg>
+      </button>
+      <button class="iconbtn" id="settingsBtn" aria-label="Einstellungen">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <section class="screenwrap">
+    <div class="bezel">
+      <button class="fled" id="fled" type="button" data-c="off" aria-label="Status-LED des Flippers"><i></i></button>
+      <div class="lcd dim" id="lcd">
+        <canvas id="screen" width="128" height="64"></canvas>
+        <div class="grid"></div>
+        <div class="pausebadge" id="pauseBadge">Bild pausiert, solange die Karte läuft</div>
+        <div class="overlay">
+          <div class="ov-title" id="ovTitle"><span class="spin"></span>Verbinde…</div>
+          <div class="ov-text" id="ovText"></div>
+        </div>
+      </div>
+    </div>
+    <div class="stats"><span id="stFps">– Bilder/s</span><span id="stPing">Ping –</span><span id="stLink">–</span></div>
+    <div class="emubar" id="emuBar" hidden>
+      <span class="emu-dot"></span>
+      <div class="emu-text"><b id="emuName">–</b><small id="emuState">wird emuliert</small></div>
+      <button class="emu-stop" id="emuStop">Stopp</button>
+    </div>
+    <div class="lowbar" id="lowBar" role="alert" hidden>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="17" height="10" rx="2"/><path d="M22 11v2"/><path d="M6 10v4"/></svg>
+      <div class="emu-text"><b id="lowTitle">Flipper-Akku schwach</b><small id="lowText">Modul geht gleich aus</small></div>
+      <button class="emu-stop" id="lowKeep">Anlassen</button>
+    </div>
+    <div class="pairbar" id="pairBar" role="alert" hidden>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/></svg>
+      <div class="emu-text"><b id="pairName">Gerät</b><small>möchte den Flipper steuern</small></div>
+      <button class="emu-stop deny" id="pairDeny">Nein</button>
+      <button class="emu-stop" id="pairOk">Erlauben</button>
+    </div>
+  </section>
+
+  <section class="controls">
+    <div class="pad" id="pad">
+      <button class="dir up" data-k="up" aria-label="Hoch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg></button>
+      <button class="dir right" data-k="right" aria-label="Rechts"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></button>
+      <button class="dir down" data-k="down" aria-label="Runter"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
+      <button class="dir left" data-k="left" aria-label="Links"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <button class="ok" data-k="ok" aria-label="OK">OK</button>
+    </div>
+    <div class="backwrap">
+      <button class="back" data-k="back" aria-label="Zurück"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
+      <small>Zurück</small>
+    </div>
+  </section>
+
+  <div class="bottom">
+    <div class="apps-label" id="favsLabel">Karten</div>
+    <nav class="apps" id="favs"></nav>
+    <div class="apps-label" id="appsLabel">App starten</div>
+    <nav class="apps" id="apps"></nav>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<section class="lock" id="lock" hidden>
+  <div class="lockcard">
+    <div class="lockicon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></svg></div>
+    <h2 id="lockTitle">Gerät nicht freigegeben</h2>
+    <p class="note" id="lockText">In diesem WLAN dürfen nur freigegebene Geräte den Flipper steuern. Frag um Freigabe – oder verbinde dich direkt mit dem WLAN des Moduls, dort reicht dessen Passwort.</p>
+    <div class="field"><label for="lockName">Name für dieses Gerät</label><input id="lockName" maxlength="24" autocomplete="off"></div>
+    <button class="btn primary" id="lockReq" type="button">Freigabe anfragen</button>
+    <p class="formmsg" id="lockMsg"></p>
+  </div>
+</section>
+
+<section class="lock" id="rbox" hidden>
+  <div class="lockcard">
+    <div class="lockicon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18z"/></svg></div>
+    <h2 id="rTitle">Fernzugriff einrichten</h2>
+    <p class="note" id="rText"></p>
+    <div class="field"><label for="rCode">Kopplungscode</label><input id="rCode" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="aus ⚙️ → Fernzugriff übers Internet"></div>
+    <button class="btn primary" id="rPair" type="button">Koppeln</button>
+    <p class="formmsg" id="rMsg"></p>
+  </div>
+</section>
+
+<div class="sheet-bg" id="sheetBg"></div>
+<section class="sheet" id="cardSheet" aria-label="Karten">
+  <div class="grabber"></div>
+  <div class="sheet-head"><h2>Karten</h2>
+    <button class="iconbtn" id="cardReload" aria-label="Neu laden"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4L21 8"/><path d="M21 3v5h-5"/></svg></button></div>
+  <div class="seg" id="kindSeg"><button data-kind="n" class="on">NFC</button><button data-kind="r">RFID 125k</button><button data-kind="i">iButton</button></div>
+  <input class="search" id="cardSearch" type="search" placeholder="Suchen…" autocomplete="off" autocapitalize="off" spellcheck="false">
+  <div class="cardlist" id="cardList"></div>
+  <p class="note">Antippen = Flipper emuliert die Karte. ☆ = als Schnellwahl auf den Hauptbildschirm.</p>
+  <button class="btn ghost" id="cardClose">Schließen</button>
+</section>
+
+<section class="sheet" id="fileSheet" aria-label="Datei an den Flipper">
+  <div class="grabber"></div>
+  <div class="sheet-head"><h2>Datei an den Flipper</h2></div>
+  <p class="note" style="margin-bottom:10px">Schick Dateien vom Handy auf die SD-Karte des Flippers – z. B. Sub-GHz (.sub), NFC (.nfc), RFID (.rfid), Infrarot (.ir), iButton (.ibtn), BadUSB-Skripte (.txt) oder Apps (.fap).</p>
+  <input type="file" id="fileInput" multiple hidden>
+  <button class="btn ghost" id="filePick" type="button">Dateien auswählen</button>
+  <div id="fileBox" hidden>
+    <div style="height:12px"></div>
+    <div class="netlist" id="fileList"></div>
+    <h3>Zielordner</h3>
+    <div class="folderchips" id="folderChips"></div>
+    <div class="crumbrow"><button class="mini" id="folderUp" type="button" aria-label="Ordner nach oben">↑</button><span class="crumb" id="folderPath">/ext</span></div>
+    <div class="netlist folderlist" id="folderList"></div>
+    <div class="progress" id="fileProg" hidden><i id="fileBar"></i></div>
+    <p class="formmsg" id="fileMsg"></p>
+    <button class="btn primary" id="fileSend" type="button">Senden</button>
+  </div>
+  <button class="btn ghost" id="fileClose" type="button">Schließen</button>
+</section>
+
+<section class="sheet" id="sheet" aria-label="Einstellungen">
+  <div class="grabber"></div>
+  <h2>Einstellungen</h2>
+  <p class="note" data-need="admin">Gilt für das WLAN-Modul am Flipper. Nach dem Speichern startet es neu.</p>
+
+  <div data-need="power">
+  <h3>Modul</h3>
+  <button class="btn ghost offbtn" id="offBtn" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/></svg>Jetzt ausschalten</button>
+  <p class="note">WLAN aus, das Modul hört nur noch mit (Richtwert ~1 mA). Wieder an: <b>Flipper-App neu öffnen</b> (neue Bluetooth-Verbindung zum Flipper) oder <b>BOOT</b> am Board drücken. Ist die Flipper-App gerade noch verbunden, vorher einmal ganz schließen. Ausschalten geht auch ohne App: <b>BOOT 3× kurz drücken</b>.</p>
+  </div>
+
+  <div id="accBox" hidden>
+    <h3>Dein Zugang</h3>
+    <div class="netstate" id="accState"></div>
+  </div>
+
+  <h3>Bedienung</h3>
+  <div class="toggle"><div>Haptisches Feedback<small>Kurzes Klicken beim Tippen (iOS 18+)</small></div><input type="checkbox" id="optHaptic"></div>
+  <div class="toggle"><div>Tasten mitdrehen<small>Bei gedrehtem Flipper-Bild zeigen die Pfeile weiter in Bildrichtung</small></div><input type="checkbox" id="optRotate"></div>
+
+  <div data-need="admin">
+  <h3>Heim-WLAN oder iPhone-Hotspot</h3>
+  <p class="note" style="margin-bottom:6px">Das Modul kann sich zusätzlich mit einem WLAN verbinden. Dann steuerst du den Flipper von jedem Gerät in diesem Netz – unter <b id="hostUrl">http://flipper.local</b>. Unterwegs geht auch der <b>Hotspot deines iPhones</b>: WLAN-Name = Name des iPhones, und unter <i>Einstellungen → Persönlicher Hotspot</i> <b>„Kompatibilität maximieren“</b> einschalten (das Modul kann nur 2,4 GHz). Speicher ruhig mehrere Netze – das Modul nimmt das stärkste oder dein bevorzugtes.</p>
+  <div class="toggle"><div>Mit WLAN verbinden</div><input type="checkbox" id="fStaOn"></div>
+  <div style="height:10px"></div>
+  <div class="netstate" id="staState">–</div>
+  <div class="netlist" id="netList"></div>
+  <div class="field" id="netPrefField"><label for="fNetPref">Verbinden mit</label><select id="fNetPref"></select></div>
+  <div class="field"><label for="fStaSsid">WLAN hinzufügen</label>
+    <div class="inrow"><input id="fStaSsid" maxlength="32" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="z. B. FRITZ!Box 7590 oder iPhone"><button class="btn small" id="scanBtn" type="button">Suchen</button></div></div>
+  <div class="scanlist" id="scanList" hidden></div>
+  <div class="field"><label for="fStaPass" id="fStaPassLabel">Passwort (leer bei offenem WLAN)</label>
+    <div class="inrow"><input id="fStaPass" type="password" maxlength="63" autocomplete="off"><button class="btn small" id="addNetBtn" type="button">Hinzufügen</button></div></div>
+  <div class="toggle"><div>Offene WLANs in der Nähe nutzen<small>Ist keins deiner WLANs da, verbindet sich das Modul selbst mit dem stärksten offenen WLAN (ohne Passwort) – aber nur, wenn es wirklich ins Internet kommt (keine Anmeldeseite). Taucht eins deiner WLANs auf, wechselt es zurück. Geht nur mit „Im WLAN nur freigegebene Geräte“. Nutze nur offene WLANs, die dafür gedacht sind, z. B. öffentliche Hotspots.</small></div><input type="checkbox" id="fOpenAuto"></div>
+  <div class="field"><label for="fHost">Name im Netzwerk</label>
+    <div class="hostrow"><span>http://</span><input id="fHost" maxlength="24" autocomplete="off" autocapitalize="off" spellcheck="false"><span>.local</span></div></div>
+
+  </div>
+
+  <div data-need="admin approve">
+  <h3>Wer darf steuern?</h3>
+  <div class="toggle" data-need="admin"><div>Im WLAN nur freigegebene Geräte<small>Gilt im Heim-WLAN bzw. Hotspot. Im eigenen WLAN des Moduls darf weiter jeder alles, der dessen Passwort kennt.</small></div><input type="checkbox" id="fLock"></div>
+  <div id="devBox" hidden>
+    <div style="height:10px"></div>
+    <div class="netlist" id="devList"></div>
+    <p class="note" id="devNote"></p>
+    <div id="roleBox" hidden>
+      <h4>Rollen</h4>
+      <div class="netlist" id="roleList"></div>
+      <div class="roleedit" id="roleEdit" hidden>
+        <div class="field" style="margin-top:0"><label for="fRoleName">Name der Rolle</label><input id="fRoleName" maxlength="20" autocomplete="off" placeholder="z. B. Kinder, Besuch, Nur zuschauen"></div>
+        <div id="rolePerms"></div>
+        <div class="toggle"><div>Zeitlich begrenzt<small>Danach fliegt das Gerät raus und muss neu um Freigabe fragen. Die Zeit läuft ab der Freigabe bzw. ab der Zuweisung der Rolle.</small></div><input type="checkbox" id="fRoleTtlOn"></div>
+        <div class="field" id="roleTtlField"><label for="fRoleTtl">Zugang endet nach</label>
+          <div class="unitrow"><input id="fRoleTtl" type="number" inputmode="numeric" min="1" max="527040" step="1"><select id="fRoleTtlUnit"><option value="1">Minuten</option><option value="60">Stunden</option><option value="1440">Tagen</option></select></div></div>
+        <div class="rowbtns"><button class="btn ghost" id="roleCancel" type="button">Abbrechen</button><button class="btn primary" id="roleSave" type="button">Rolle speichern</button></div>
+        <button class="btn danger" id="roleDel" type="button">Rolle löschen</button>
+        <p class="formmsg" id="roleMsg"></p>
+      </div>
+      <button class="btn ghost" id="roleAdd" type="button">Neue Rolle</button>
+      <div class="field" style="margin-top:14px"><label for="fDefRole">Neu zugelassene Geräte bekommen die Rolle</label><select id="fDefRole"></select></div>
+      <p class="note">Rollen wirken sofort, ohne Neustart. <b>Admin</b> darf alles – auch Einstellungen ändern und Geräte und Rollen verwalten. Das kann nur Admin, so kann sich niemand selbst mehr Rechte geben. Im eigenen WLAN des Moduls gilt jeder, der dessen Passwort kennt, als Admin.</p>
+    </div>
+  </div>
+  </div>
+
+  <div id="rmtSec" hidden>
+  <h3>Fernzugriff übers Internet</h3>
+  <div data-need="admin">
+    <div class="toggle"><div>Von unterwegs steuern<small>Das Modul hält über sein WLAN eine Verbindung zu einem kostenlosen Vermittler im Internet. Dein Handy trifft es dort – auch nur mit Mobilfunk. Alles ist Ende-zu-Ende verschlüsselt, der Vermittler sieht nur Datensalat. Es dürfen nur Geräte, deren Rolle „Fernzugriff übers Internet“ erlaubt (Admin immer).</small></div><input type="checkbox" id="fRemote"></div>
+    <div id="rmtCfg">
+      <div style="height:10px"></div>
+      <div class="field"><label for="fBroker">Vermittler (öffentlich, ohne Anmeldung)</label>
+        <select id="fBroker"><option value="1">EMQX – broker.emqx.io</option><option value="2">HiveMQ – broker.hivemq.com</option><option value="3">Mosquitto – test.mosquitto.org</option><option value="0">eigener Vermittler …</option></select></div>
+      <div id="brokerOwn">
+        <div class="field"><label for="fRmMqtt">Adresse fürs Modul</label><input id="fRmMqtt" maxlength="71" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="mqtt://mein-server.de:1883"></div>
+        <div class="field"><label for="fRmWss">Adresse fürs Handy (WebSocket mit TLS)</label><input id="fRmWss" maxlength="95" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="wss://mein-server.de:8884/mqtt"></div>
+      </div>
+      <div class="field"><label for="fRmPage">Adresse deiner Fernbedienungs-Seite im Internet</label><input id="fRmPage" maxlength="127" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://name.github.io/flipper/"></div>
+      <p class="note">Unterwegs kann dein Handy diese Seite nicht vom Modul laden – sie muss im Internet liegen (dieselbe Datei, z. B. kostenlos bei GitHub Pages, siehe Anleitung). Gilt nach „Speichern &amp; neu starten“.</p>
+    </div>
+  </div>
+  <div style="height:10px"></div>
+  <div class="netstate" id="rmtState">–</div>
+  <div class="field" id="rmtDevField" data-need="admin"><label for="fRmDev">Kopplungslink für</label><select id="fRmDev"></select></div>
+  <button class="btn ghost" id="rmtLinkBtn" type="button">Kopplungslink erzeugen</button>
+  <div id="rmtLinkBox" hidden>
+    <div style="height:10px"></div>
+    <div class="info" id="rmtLink"></div>
+    <div class="rowbtns"><button class="btn ghost" id="rmtOpen" type="button">Öffnen</button><button class="btn ghost" id="rmtShare" type="button">Teilen</button><button class="btn ghost" id="rmtCopy" type="button">Kopieren</button></div>
+    <p class="note" id="rmtNote"></p>
+  </div>
+  </div>
+
+  <div data-need="admin">
+
+  <h3>WLAN des Moduls</h3>
+  <div class="field"><label for="fSsid">WLAN-Name</label><input id="fSsid" maxlength="32" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+  <div class="field"><label for="fPass">Neues Passwort (leer lassen = unverändert)</label><input id="fPass" type="password" minlength="8" maxlength="63" autocomplete="new-password" placeholder="mindestens 8 Zeichen"></div>
+  <div class="row">
+    <div class="field"><label for="fChan">Kanal</label><select id="fChan"></select></div>
+    <div class="field"><label for="fPwr">Sendeleistung</label>
+      <select id="fPwr"><option value="80">20 dBm (max.)</option><option value="60">15 dBm</option><option value="44">11 dBm</option><option value="34">8,5 dBm</option></select></div>
+  </div>
+  <div class="toggle"><div>Maximale Reichweite<small>Funkt nur noch im robusten 802.11b-Modus mit fest 1 Mbit/s – etwas mehr Reichweite und vor allem stabiler am Rand. Für Bild und Tasten reicht das locker, die Seite lädt etwas langsamer.</small></div><input type="checkbox" id="fLongRange"></div>
+  <p class="note" id="rangeNote">Am meisten bringt die Position: Die Antenne ist die Zickzack-Leiterbahn am Ende des ESP-Moduls, direkt neben dem Metalldeckel – nicht mit der Hand abdecken, Sichtverbindung halten, Flipper möglichst hoch (nicht in die Hosentasche, nicht auf Metall). Dein Körper zwischen Handy und Flipper kostet viel Reichweite.</p>
+
+  <h3>Energie</h3>
+  <div class="toggle"><div>Energiesparmodus<small>Langsamerer Prozessor, LED blitzt nur kurz. Ist keine Fernbedienung offen, ruht die Verbindung zum Flipper – dann kann auch er schlafen.</small></div><input type="checkbox" id="fLowPower"></div>
+  <div style="height:12px"></div>
+  <div>
+    <div class="field"><label for="fSleepMode">Wenn niemand die App nutzt</label>
+      <select id="fSleepMode"><option value="0">Modul bleibt wach</option><option value="3">Bereitschaft – sofort erreichbar</option><option value="4">Aus – Bluetooth am Flipper weckt</option><option value="1">schlafen, regelmäßig kurz aufwachen</option><option value="2">tief schlafen (nur RESET weckt)</option></select></div>
+    <div class="field" id="sleepAfterField"><label for="fSleepAfter">Schlafen nach</label>
+      <select id="fSleepAfter"><option value="5">5 Minuten</option><option value="15">15 Minuten</option><option value="30">30 Minuten</option><option value="60">60 Minuten</option></select></div>
+  </div>
+  <div id="wakeFields" class="row">
+    <div class="field"><label for="fWakeEvery">Aufwachen alle</label>
+      <div class="unitrow"><input id="fWakeEvery" type="number" inputmode="numeric" min="1" max="1440" step="1"><select id="fWakeUnit"><option value="1">Sek.</option><option value="60">Min.</option></select></div></div>
+    <div class="field"><label for="fWakeWin">Dann wach für</label>
+      <div class="unitrow"><input id="fWakeWin" type="number" inputmode="numeric" min="10" max="300" step="1"><span>Sek.</span></div></div>
+  </div>
+  <p class="note" id="sleepNote"></p>
+  <div class="toggle"><div>Bei schwachem Flipper-Akku aus<small>Das Modul geht ganz aus und bleibt aus – auch Bluetooth weckt es dann nicht mehr. Lädt der Flipper, geht es von selbst wieder an.</small></div><input type="checkbox" id="fLowBat"></div>
+  <div class="field" id="lowBatField" style="margin-top:10px"><label for="fLowBatLevel">Ausschalten bei</label>
+    <select id="fLowBatLevel"><option value="5">5 % oder weniger</option><option value="10">10 % oder weniger</option><option value="15">15 % oder weniger</option><option value="20">20 % oder weniger</option><option value="25">25 % oder weniger</option><option value="30">30 % oder weniger</option></select></div>
+  <p class="note" id="lowBatNote"></p>
+
+  <h3>Verbindung zum Flipper</h3>
+  <div class="field"><label for="fBaud">Geschwindigkeit (Baud)</label>
+    <select id="fBaud"><option value="921600">921600 – flüssigstes Bild (empfohlen)</option><option value="460800">460800</option><option value="230400">230400 – langsamer, sehr robust</option><option value="115200">115200 – nur zur Fehlersuche</option></select></div>
+  <p class="note" id="baudNote">Je höher, desto mehr Bilder pro Sekunde. Kommt es auf der Leitung zu Übertragungsfehlern, schaltet das Modul von selbst eine Stufe herunter.</p>
+  <div class="row">
+    <div class="field"><label for="fTx">ESP-Pin TX → Flipper 14</label><input id="fTx" type="number" inputmode="numeric" min="0" max="48"></div>
+    <div class="field"><label for="fRx">ESP-Pin RX ← Flipper 13</label><input id="fRx" type="number" inputmode="numeric" min="0" max="48"></div>
+  </div>
+  <button class="btn primary" id="saveBtn">Speichern &amp; neu starten</button>
+  <div class="formmsg" id="formMsg"></div>
+  </div>
+
+  <h3>Als App auf dem Home-Bildschirm</h3>
+  <p class="note" id="a2hs">In Safari auf <b>Teilen</b> tippen und <b>„Zum Home-Bildschirm“</b> wählen. Die Fernbedienung öffnet sich dann wie eine eigene App. Tipp: Öffne die Seite dafür über <b>http://flipper.local</b> – diese Adresse funktioniert im Modul-WLAN und im Heim-WLAN.</p>
+
+  <div id="fwSection" hidden>
+    <h3>Marauder</h3>
+    <p class="note">Auf dem Board ist zusätzlich Marauder installiert (Firmware B). Zurück zur Fernbedienung geht es am Flipper mit <b>ESP Flasher → Switch to Firmware A</b>.</p>
+    <button class="btn ghost" id="switchBtn">Zu Marauder wechseln</button>
+  </div>
+
+  <div data-need="admin">
+  <h3>Info</h3>
+  <div class="info" id="info">–</div>
+  </div>
+  <button class="btn ghost" id="closeBtn">Schließen</button>
+  <button class="btn danger" id="resetBtn" data-need="admin">Auf Werkseinstellungen zurücksetzen</button>
+</section>
+
+<label id="hap"><input type="checkbox" switch></label>
+
+<script>
+"use strict";
+(() => {
+  /* ---------- Konstanten ---------- */
+  const PHYS = {up: 0, down: 1, right: 2, left: 3, ok: 4, back: 5};
+  // Ausrichtung (PB_Gui.ScreenOrientation) -> angezeigte Richtung -> physische Taste
+  const ROT = {
+    0: {up: "up", down: "down", left: "left", right: "right"},
+    1: {up: "down", down: "up", left: "right", right: "left"},
+    2: {up: "left", right: "up", down: "right", left: "down"},
+    3: {up: "right", right: "down", down: "left", left: "up"},
+  };
+  const APPS = [
+    ["Sub-GHz", "Sub-GHz", "M2 12h3l2-6 3 12 3-9 2 5 2-2h5"],
+    ["Infrared", "Infrarot", "M12 2v4M4.9 4.9l2.8 2.8M2 12h4M19.1 4.9l-2.8 2.8M22 12h-4M12 22a4 4 0 0 0 4-4v-3H8v3a4 4 0 0 0 4 4z"],
+    ["NFC", "NFC", "M6 8.5a5 5 0 0 1 0 7M9.5 6a9 9 0 0 1 0 12M13 3.5a13 13 0 0 1 0 17M17 12h4"],
+    ["125 kHz RFID", "RFID 125k", "M4 6h16v12H4zM8 10h4M8 14h8"],
+    ["iButton", "iButton", "M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"],
+    ["Bad USB", "Bad USB", "M12 3v14M8 7l4-4 4 4M7 13h2M15 11h2M7 13v2a3 3 0 0 0 3 3h4a3 3 0 0 0 3-3v-4M12 21v-4"],
+    ["GPIO", "GPIO", "M7 3v4M12 3v4M17 3v4M7 17v4M12 17v4M17 17v4M4 7h16v10H4z"],
+    ["U2F", "U2F", "M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6zM9 12l2 2 4-4"],
+  ];
+  const OFF = rgba(255, 140, 38), ON = rgba(28, 14, 2);
+
+  /* ---------- Zustand ---------- */
+  const $ = (id) => document.getElementById(id);
+  const canvas = $("screen"), ctx = canvas.getContext("2d");
+  let img = null, orientation = 0, haveFrame = false;
+  let ws = null, wsOpen = false, retryTimer = null, everConnected = false, moduleOff = false, offWhy = null;
+  let link = -1, searchingSince = 0, lastStatus = null;
+  let lastRx = 0, connectStarted = 0, rtt = null;
+  const holds = new Map();
+  const prefs = loadPrefs();
+
+  /* ---------- Rollen und Rechte ----------
+     Das Modul schickt die eigene Rolle ({"t":"me"}): Was sie nicht darf, blendet die App aus.
+     Geprüft wird trotzdem im Modul – die App ist nur die Anzeige. */
+  const P = {keys: 1, apps: 2, cards: 4, files: 8, power: 16, approve: 32, remote: 64, admin: 128};
+  const PERMS = [
+    [1, "Flipper bedienen", "Steuerkreuz, OK und Zurück"],
+    [2, "Apps starten", "Leiste „App starten“"],
+    [4, "Karten emulieren", "NFC, RFID, iButton – und die Schnellwahl ändern"],
+    [8, "Dateien senden", "vom Handy auf die SD-Karte des Flippers"],
+    [16, "Modul ausschalten", "„Jetzt ausschalten“ und „Anlassen“ bei schwachem Akku"],
+    [32, "Neue Geräte zulassen", "Anfragen erlauben oder ablehnen – neue Geräte bekommen dann die Standardrolle"],
+    [64, "Fernzugriff übers Internet", "von unterwegs steuern, mit eigenem Kopplungslink (die anderen Rechte gelten auch dort)"],
+  ];
+  let me = {pm: 255, lock: false, rid: -1, role: "", left: -1, at: 0, dev: "", rmt: false}, warned = 1e9;
+  const nowSec = () => Math.floor(Date.now() / 1000);
+  function may(p) { return (me.pm & p) === p; }
+  function leftNow() { return me.left < 0 ? me.left : Math.max(0, me.left - Math.floor((Date.now() - me.at) / 1000)); }
+  function hasRole() { return me.lock && me.rid >= 0; }
+
+  function rgba(r, g, b) { return (255 << 24 | b << 16 | g << 8 | r) >>> 0; }
+
+  function loadPrefs() {
+    const d = {haptic: true, rotate: true};
+    try { return Object.assign(d, JSON.parse(localStorage.getItem("fr-prefs") || "{}")); } catch (e) { return d; }
+  }
+  function savePrefs() { try { localStorage.setItem("fr-prefs", JSON.stringify(prefs)); } catch (e) {} }
+
+  /* ---------- Fernzugriff übers Internet ----------
+     Kommt diese Seite nicht vom Modul (https://… im Internet), läuft sie im Fern-Modus: Sie
+     trifft das Modul bei einem MQTT-Vermittler. Alles ist Ende-zu-Ende verschlüsselt
+     (AES-256-GCM, Protokoll wie firmware/main/core/rproto.h). Der Rest der App merkt davon
+     nichts: Statt WebSocket und fetch("/api/…") laufen Stellvertreter durch den Tunnel, und
+     das Modul spielt am anderen Ende das Handy gegenüber seinem eigenen Webserver. */
+  const REMOTE = location.protocol === "https:" || /[?&]remote=1(&|$)/.test(location.search);
+  const BROKER_WSS = {1: "wss://broker.emqx.io:8084/mqtt", 2: "wss://broker.hivemq.com:8884/mqtt", 3: "wss://test.mosquitto.org:8081/mqtt"};
+  const te = new TextEncoder(), td = new TextDecoder();
+  const hexOf = (b) => Array.from(b, x => x.toString(16).padStart(2, "0")).join("");
+  const cat = (...parts) => { const n = parts.reduce((a, p) => a + p.length, 0), o = new Uint8Array(n); let i = 0; for (const p of parts) { o.set(p, i); i += p.length; } return o; };
+  function b64urlDecode(t) {
+    t = String(t).trim().replace(/-/g, "+").replace(/_/g, "/").replace(/[^A-Za-z0-9+/]/g, "");
+    while (t.length % 4) t += "=";
+    const bin = atob(t), o = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) o[i] = bin.charCodeAt(i);
+    return o;
+  }
+  // Kopplungscode: [1][Modul-Nr. 8][Kd 32][Vermittler 1][bei eigenem: wss-Adresse]
+  function parsePair(code) {
+    try {
+      const b = b64urlDecode(code);
+      if (b.length < 42 || b[0] !== 1) return null;
+      const url = b[41] === 0 ? td.decode(b.slice(42)) : BROKER_WSS[b[41]];
+      if (!url || !/^wss?:\/\//.test(url)) return null;
+      return {code: String(code).trim(), mid: hexOf(b.slice(1, 9)), kd: b.slice(9, 41), url};
+    } catch (e) { return null; }
+  }
+  function loadPair() {
+    const m = /[#&]fz=([A-Za-z0-9_-]+)/.exec(location.hash);
+    let p = m && parsePair(m[1]);
+    if (p) { try { localStorage.setItem("fr-remote", p.code); } catch (e) {} return p; }
+    try { p = parsePair(localStorage.getItem("fr-remote") || ""); } catch (e) { p = null; }
+    return p;
+  }
+
+  /* Kleinster MQTT-3.1.1-Client über WebSocket (QoS 0) */
+  function mqttStr(t) { const b = te.encode(t); return cat(new Uint8Array([b.length >> 8, b.length & 255]), b); }
+  function mqttPkt(type, body) {
+    const len = []; let n = body.length;
+    do { let d = n % 128; n = Math.floor(n / 128); if (n) d |= 128; len.push(d); } while (n);
+    return cat(new Uint8Array([type]), new Uint8Array(len), body);
+  }
+  function Mqtt(url, onMsg, onState) {
+    let sock = null, buf = new Uint8Array(0), ping = null, alive = false, retry = null, stopped = false;
+    const cid = "fzp" + hexOf(crypto.getRandomValues(new Uint8Array(8)));
+    const subs = new Set();
+    const send = (pkt) => { if (sock && sock.readyState === 1) { try { sock.send(pkt); return true; } catch (e) {} } return false; };
+    function open() {
+      if (stopped) return;
+      try { sock = new WebSocket(url, ["mqtt"]); } catch (e) { return later(); }
+      sock.binaryType = "arraybuffer";
+      sock.onopen = () => send(mqttPkt(0x10, cat(mqttStr("MQTT"), new Uint8Array([4, 2, 0, 30]), mqttStr(cid))));
+      sock.onmessage = (ev) => { buf = cat(buf, new Uint8Array(ev.data)); parse(); };
+      sock.onclose = () => { clearInterval(ping); if (alive) { alive = false; onState(false); } later(); };
+      sock.onerror = () => { try { sock.close(); } catch (e) {} };
+    }
+    function later() { clearTimeout(retry); if (!stopped) retry = setTimeout(open, 2500); }
+    function parse() {
+      for (;;) {
+        if (buf.length < 2) return;
+        let mul = 1, len = 0, i = 1, d;
+        do { if (i >= buf.length) return; d = buf[i++]; len += (d & 127) * mul; mul *= 128; } while (d & 128);
+        if (buf.length < i + len) return;
+        const head = buf[0], type = head & 0xF0, body = buf.slice(i, i + len);
+        buf = buf.slice(i + len);
+        if (type === 0x20) { // CONNACK
+          if (body[1] !== 0) { try { sock.close(); } catch (e) {} return; }
+          alive = true;
+          for (const t of subs) subscribe(t);
+          clearInterval(ping); ping = setInterval(() => send(new Uint8Array([0xC0, 0])), 20000);
+          onState(true);
+        } else if (type === 0x30) { // PUBLISH (QoS 0)
+          const tl = body[0] << 8 | body[1], qos = (head >> 1) & 3;
+          const topic = td.decode(body.slice(2, 2 + tl));
+          onMsg(topic, body.slice(2 + tl + (qos ? 2 : 0)));
+        }
+      }
+    }
+    function subscribe(t) { subs.add(t); return send(mqttPkt(0x82, cat(new Uint8Array([0, 1]), mqttStr(t), new Uint8Array([0])))); }
+    open();
+    return {
+      publish: (t, data) => send(mqttPkt(0x30, cat(mqttStr(t), data))),
+      subscribe,
+      get alive() { return alive; },
+      stop() { stopped = true; clearTimeout(retry); clearInterval(ping); try { send(new Uint8Array([0xE0, 0])); sock.close(); } catch (e) {} },
+    };
+  }
+
+  /* Ende-zu-Ende-Verschlüsselung (wie core/rproto.c) */
+  const subtle = (window.crypto || {}).subtle;
+  async function hmac(key, msg) {
+    const k = await subtle.importKey("raw", key, {name: "HMAC", hash: "SHA-256"}, false, ["sign"]);
+    return new Uint8Array(await subtle.sign("HMAC", k, msg));
+  }
+  const gcmKey = (raw) => subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt", "decrypt"]);
+  async function seal(key, kind, kid, sid, nonce, pt) {
+    const aad = cat(new Uint8Array([1, kind]), kid, sid);
+    const ct = new Uint8Array(await subtle.encrypt({name: "AES-GCM", iv: nonce, additionalData: aad, tagLength: 128}, key, pt));
+    return cat(aad, nonce, ct);
+  }
+  async function unseal(key, pkt) {
+    return new Uint8Array(await subtle.decrypt({name: "AES-GCM", iv: pkt.slice(14, 26), additionalData: pkt.slice(0, 14), tagLength: 128}, key, pkt.slice(26)));
+  }
+  function ctrNonce(dir, ctr) { const n = new Uint8Array(12); n[0] = dir; new DataView(n.buffer).setBigUint64(4, ctr); return n; }
+
+  /* Sitzung mit dem Modul */
+  const Rem = {
+    st: "idle", // idle | broker | hello | ready | refused
+    why: "", pair: null, mqtt: null, sid: null, kid: null, kdKey: null, ks: null, pn: null,
+    rx: 0n, tx: 1n, chain: Promise.resolve(), lastRx: 0, lastTx: 0, helloTimer: null, waiters: [], reqs: new Map(), nextId: 1, sock: null,
+    async start(pair) {
+      this.pair = pair;
+      this.sid = crypto.getRandomValues(new Uint8Array(8));
+      this.kid = (await hmac(pair.kd, te.encode("fzr-kid"))).slice(0, 4);
+      this.kdKey = await gcmKey(pair.kd);
+      this.down = "fzr/" + pair.mid + "/d/" + hexOf(this.sid);
+      this.up = "fzr/" + pair.mid + "/u";
+      this.setSt("broker");
+      this.mqtt = Mqtt(pair.url, (t, d) => { if (t === this.down) this.chain = this.chain.then(() => this.onPacket(d)).catch(() => {}); },
+        (on) => { if (on) { this.mqtt.subscribe(this.down); this.hello(); } else this.lost(); });
+      setInterval(() => this.tick(), 1000);
+    },
+    setSt(st, why) { this.st = st; this.why = why || ""; updateUi(); },
+    hello() {
+      clearTimeout(this.helloTimer);
+      if (!this.mqtt || !this.mqtt.alive || this.st === "refused") return;
+      if (this.st !== "ready") this.setSt("hello");
+      this.pn = crypto.getRandomValues(new Uint8Array(16));
+      const nonce = crypto.getRandomValues(new Uint8Array(12));
+      this.chain = this.chain.then(async () => this.mqtt.publish(this.up, await seal(this.kdKey, 1, this.kid, this.sid, nonce, cat(this.pn, new Uint8Array([1]))))).catch(() => {});
+      this.helloTimer = setTimeout(() => this.hello(), 3000); // keine Antwort: Modul aus oder nicht online
+    },
+    async onPacket(d) {
+      if (d.length < 42 || d[0] !== 1 || hexOf(d.slice(2, 6)) !== hexOf(this.kid) || hexOf(d.slice(6, 14)) !== hexOf(this.sid)) return;
+      if (d[1] === 2) { // WELCOME
+        let w; try { w = await unseal(this.kdKey, d); } catch (e) { return; }
+        if (w.length !== 33 || hexOf(w.slice(0, 16)) !== hexOf(this.pn)) return;
+        clearTimeout(this.helloTimer);
+        if (w[32] === 2) { this.setSt("busy"); this.helloTimer = setTimeout(() => this.hello(), 10000); return; } // alle Plätze belegt
+        if (w[32] !== 0) { this.failAll(); return this.setSt("refused", w[32] === 3 ? "lock" : "perm"); }
+        this.ks = await gcmKey(await hmac(this.pair.kd, cat(te.encode("fzr-sess"), this.sid, this.pn, w.slice(16, 32))));
+        this.rx = 0n; this.tx = 1n; this.lastRx = Date.now();
+        this.setSt("ready");
+        const ws = this.waiters; this.waiters = []; ws.forEach(f => f());
+      } else if (d[1] === 3 && this.st === "ready") { // DATA
+        const n = d.slice(14, 26), dv = new DataView(n.buffer);
+        const ctr = dv.getBigUint64(4);
+        if (n[0] !== 1 || n[1] || n[2] || n[3] || ctr <= this.rx) return;
+        let p; try { p = await unseal(this.ks, d); } catch (e) { return; }
+        this.rx = ctr; this.lastRx = Date.now();
+        this.onData(p);
+      }
+    },
+    onData(p) {
+      const t = String.fromCharCode(p[0]), body = p.slice(1), s = this.sock;
+      if (t === "O" && s) { if ((body[0] << 8 | body[1]) === 101) s._open(); else s._closed(); }
+      else if (t === "T" && s) s._msg(td.decode(body));
+      else if (t === "B" && s) s._msg(body.slice().buffer);
+      else if (t === "C" && s) s._closed();
+      else if (t === "R") {
+        const id = body[0] << 8 | body[1], r = this.reqs.get(id);
+        if (!r) return;
+        this.reqs.delete(id); clearTimeout(r.timer);
+        const status = body[2] << 8 | body[3];
+        if (!status) r.fail(new TypeError("Keine Antwort vom Modul"));
+        else r.ok(new Response(body.slice(4), {status, headers: {"Content-Type": "application/json"}}));
+      } else if (t === "X") { // Modul beendet: Gerät weg, Recht entzogen oder Sperre aus
+        const why = {g: "gone", p: "perm", l: "lock"}[String.fromCharCode(body[0])] || "gone";
+        this.failAll(); this.setSt("refused", why);
+        if (this.sock) this.sock._closed();
+      }
+    },
+    send(type, data) {
+      if (this.st !== "ready") return false;
+      const pt = cat(new Uint8Array([type.charCodeAt(0)]), data || new Uint8Array(0));
+      this.lastTx = Date.now();
+      this.chain = this.chain.then(async () => {
+        const nonce = ctrNonce(0, this.tx++);
+        this.mqtt.publish(this.up, await seal(this.ks, 3, this.kid, this.sid, nonce, pt));
+      }).catch(() => {});
+      return true;
+    },
+    whenReady(ms) {
+      if (this.st === "ready") return Promise.resolve();
+      if (this.st === "refused") return Promise.reject(new TypeError("Fernzugriff abgelehnt"));
+      if (this.st === "idle") return Promise.reject(new TypeError("Nicht gekoppelt"));
+      return new Promise((ok, fail) => { const t = setTimeout(() => fail(new TypeError("Modul nicht erreichbar")), ms || 12000); this.waiters.push(() => { clearTimeout(t); ok(); }); });
+    },
+    failAll() { for (const r of this.reqs.values()) { clearTimeout(r.timer); r.fail(new TypeError("Verbindung weg")); } this.reqs.clear(); },
+    lost() { if (this.st === "ready" || this.st === "hello") this.setSt("broker"); this.failAll(); if (this.sock) this.sock._closed(); },
+    tick() {
+      if (this.st !== "ready") return;
+      if (Date.now() - this.lastRx > 25000) { this.setSt("hello"); this.failAll(); if (this.sock) this.sock._closed(); this.hello(); return; }
+      if (Date.now() - this.lastTx > 9000) this.send("K");
+    },
+    async request(method, path, body, signal) {
+      await this.whenReady();
+      const id = this.nextId = (this.nextId % 65535) + 1;
+      return new Promise((ok, fail) => {
+        const r = {ok, fail, timer: setTimeout(() => { this.reqs.delete(id); fail(new TypeError("Zeitüberschreitung")); }, 15000)};
+        this.reqs.set(id, r);
+        if (signal) signal.addEventListener("abort", () => { this.reqs.delete(id); clearTimeout(r.timer); fail(new DOMException("abgebrochen", "AbortError")); });
+        const b = typeof body === "string" ? te.encode(body) : body ? new Uint8Array(body) : new Uint8Array(0);
+        this.send("Q", cat(new Uint8Array([id >> 8, id & 255, method.charCodeAt(0)]), te.encode(path), new Uint8Array([0]), b));
+      });
+    },
+  };
+
+  /* Stellvertreter für den WebSocket der App */
+  class RemoteSocket {
+    constructor(path) {
+      this.readyState = 0; this.binaryType = "arraybuffer";
+      if (Rem.sock) Rem.sock._closed();
+      Rem.sock = this;
+      Rem.whenReady().then(() => { if (this.readyState === 0) Rem.send("O", te.encode(path)); }).catch(() => this._closed());
+    }
+    _open() { if (this.readyState !== 0) return; this.readyState = 1; if (this.onopen) this.onopen(); }
+    _msg(data) { if (this.readyState === 1 && this.onmessage) this.onmessage({data}); }
+    _closed() { if (this.readyState === 3) return; this.readyState = 3; if (Rem.sock === this) Rem.sock = null; setTimeout(() => this.onclose && this.onclose(), 0); }
+    send(data) { if (this.readyState !== 1) return; if (typeof data === "string") Rem.send("T", te.encode(data)); else Rem.send("B", new Uint8Array(data)); }
+    close() { if (this.readyState === 3) return; if (this.readyState === 1) Rem.send("C"); this._closed(); }
+  }
+  if (REMOTE) {
+    const nativeFetch = window.fetch.bind(window);
+    window.fetch = (url, opt = {}) => {
+      const u = String(url);
+      if (!u.startsWith("/api/")) return nativeFetch(url, opt);
+      return Rem.request((opt.method || "GET").toUpperCase() === "POST" ? "P" : "G", u, opt.body, opt.signal);
+    };
+  }
+
+  /* ---------- WebSocket ---------- */
+  function connect() {
+    clearTimeout(retryTimer);
+    if (ws || locked) return;
+    let sock;
+    try { sock = REMOTE ? new RemoteSocket("/ws?t=" + nowSec()) : new WebSocket("ws://" + location.host + "/ws?t=" + nowSec()); } catch (e) { scheduleRetry(); return; }
+    ws = sock;
+    connectStarted = Date.now();
+    sock.binaryType = "arraybuffer";
+    sock.onopen = () => {
+      if (ws !== sock) return;
+      wsOpen = true; everConnected = true; moduleOff = false; offWhy = null; lastRx = Date.now();
+      $("saveBtn").disabled = false;
+      ping(); updateUi(); loadFavs();
+    };
+    sock.onclose = () => {
+      if (ws !== sock) return; // gehört zu einer alten, schon ersetzten Verbindung
+      wsOpen = false; ws = null; rtt = null; releaseAll(false); link = -1; updateUi(); uploadFailed(65535); retryOrLock();
+    };
+    sock.onerror = () => { try { sock.close(); } catch (e) {} };
+    sock.onmessage = (ev) => {
+      if (ws !== sock) return;
+      lastRx = Date.now();
+      if (typeof ev.data !== "string") return onFrame(new Uint8Array(ev.data));
+      if (ev.data[0] === "P") { rtt = Date.now() - Number(ev.data.slice(1)); return updateStats(); }
+      let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+      if (m.t === "s") onStatus(m);
+      else if (m.t === "r") onResult(m);
+      else if (m.t === "ls") onList(m);
+      else if (m.t === "emu") onEmu(m);
+      else if (m.t === "up") onUpload(m);
+      else if (m.t === "pair") onPair(m);
+      else if (m.t === "paired") onPaired(m);
+      else if (m.t === "me") setMe(m);
+      else if (m.t === "bye") showLock(m.why);
+      else if (m.t === "devs") { if ($("sheet").classList.contains("open") && !$("devBox").hidden) loadDevices(); }
+      else if (m.t === "deny") toast(DENY[m.w] || "Dafür fehlt diesem Gerät die Berechtigung.", true);
+      else if (m.t === "off") {
+        moduleOff = true; offWhy = m.why === "akku" ? {b: m.b} : null; releaseAll();
+        toast(offWhy ? "Flipper-Akku schwach – Modul geht aus …" : "Modul wird ausgeschaltet …", !!offWhy); updateUi();
+      }
+    };
+  }
+  function scheduleRetry() { clearTimeout(retryTimer); retryTimer = setTimeout(connect, 1500); }
+
+  /* ---------- Nur freigegebene Geräte ----------
+     Ist die Sperre an und dieses Gerät (im Heim-WLAN) nicht freigegeben, lehnt das Modul die
+     Verbindung ab. Ob das der Grund war, verrät /api/me – dann Sperrbildschirm statt Wiederholen. */
+  let locked = false, pairPoll = null;
+  async function whoami() {
+    const c = new AbortController(), t = setTimeout(() => c.abort(), REMOTE ? 15000 : 3000);
+    // ?t=: Das Modul hat keine eigene Uhr – für Zeitgrenzen nimmt es die des Handys
+    try { const r = await fetch("/api/me?t=" + nowSec(), {cache: "no-store", signal: c.signal}); return await r.json(); }
+    catch (e) { return null; } finally { clearTimeout(t); }
+  }
+  const lockWhy = (w) => w.exp ? "exp" : w.gone ? "gone" : "";
+  async function retryOrLock() {
+    const w = await whoami();
+    if (w && w.lock && !w.allowed) return REMOTE ? showRemoteBox(w.exp ? "exp" : w.gone ? "gone" : "perm") : showLock(lockWhy(w));
+    if (REMOTE && Rem.st === "refused") return;
+    if (w) setMe(w, true);
+    scheduleRetry();
+  }
+  function guessName() {
+    const ua = navigator.userAgent;
+    let n = /iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) ? "iPad" : /iPhone/.test(ua) ? "iPhone" :
+      /Android/.test(ua) ? "Android" : /Macintosh/.test(ua) ? "Mac" : /Windows/.test(ua) ? "PC" : "Browser";
+    // Die App vom Home-Bildschirm hat eigene Cookies – sie ist für das Modul ein eigenes Gerät
+    if (navigator.standalone || matchMedia("(display-mode: standalone)").matches) n += " (App)";
+    return n;
+  }
+  const LOCK_TXT = {
+    "": ["Gerät nicht freigegeben", $("lockText").textContent],
+    exp: ["Zeit abgelaufen", "Der Zugang dieses Geräts war zeitlich begrenzt und ist jetzt abgelaufen. Du kannst einfach neu um Freigabe fragen."],
+    rm: ["Zugang entfernt", "Dieses Gerät wurde aus der Liste der freigegebenen Geräte entfernt. Du kannst neu um Freigabe fragen."],
+    gone: ["Zugang beendet", "Dieses Gerät war freigegeben, ist es aber nicht mehr – es wurde entfernt oder seine Zeit ist abgelaufen. Frag einfach neu um Freigabe."],
+  };
+  function showLock(why) {
+    if (REMOTE) return showRemoteBox(why === "exp" ? "exp" : why === "rm" ? "gone" : "perm");
+    const t = LOCK_TXT[why || ""] || LOCK_TXT[""];
+    $("lockTitle").textContent = t[0]; $("lockText").textContent = t[1];
+    locked = true;
+    clearTimeout(retryTimer);
+    if (ws) { const old = ws; ws = null; wsOpen = false; try { old.close(); } catch (e) {} }
+    closeSheets(); releaseAll(false);
+    if (!$("lockName").value) $("lockName").value = guessName();
+    $("lock").hidden = false;
+  }
+  function hideLock() {
+    clearInterval(pairPoll); pairPoll = null;
+    locked = false; $("lock").hidden = true; $("lockMsg").textContent = ""; $("lockReq").disabled = false;
+    connect();
+  }
+  $("lockReq").addEventListener("click", async () => {
+    const btn = $("lockReq"), lm = $("lockMsg");
+    btn.disabled = true; lm.className = "formmsg"; lm.textContent = "Frage an…";
+    try {
+      const r = await fetch("/api/pair", {method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({name: $("lockName").value.trim() || guessName()})});
+      const j = await r.json();
+      if (j.already) return hideLock();
+      if (!j.ok || !j.id) throw new Error(j.error || "Fehler");
+      lm.textContent = "Warte auf Freigabe … Erlaube sie auf einem freigegebenen Gerät (dort erscheint ein Hinweis) oder drücke einmal kurz BOOT am Modul. Die Anfrage gilt 2 Minuten.";
+      clearInterval(pairPoll);
+      pairPoll = setInterval(async () => {
+        let st;
+        try { st = (await (await fetch("/api/pair?id=" + encodeURIComponent(j.id), {cache: "no-store"})).json()).st; } catch (e) { return; }
+        if (st === "wait") return;
+        clearInterval(pairPoll); pairPoll = null; btn.disabled = false;
+        if (st === "ok") { lm.className = "formmsg ok"; lm.textContent = "Freigegeben!"; setTimeout(hideLock, 600); }
+        else if (st === "denied") { lm.className = "formmsg err"; lm.textContent = "Die Anfrage wurde abgelehnt."; }
+        else { lm.className = "formmsg err"; lm.textContent = "Die Anfrage ist abgelaufen – bitte noch einmal anfragen."; }
+      }, 1500);
+    } catch (e) {
+      btn.disabled = false; lm.className = "formmsg err"; lm.textContent = "Anfrage fehlgeschlagen: " + (e.message || e);
+    }
+  });
+
+  /* Ein neues Gerät fragt an: Hinweis mit Erlauben/Nein auf allen freigegebenen Fernbedienungen */
+  const pairQueue = [];
+  function onPair(m) {
+    if (!may(P.approve)) return;
+    if (!pairQueue.some(x => x.p === m.p)) pairQueue.push({p: m.p, n: m.n, t: Date.now()});
+    showPair(); if (!$("devBox").hidden) loadDevices();
+  }
+  function onPaired(m) {
+    const i = pairQueue.findIndex(x => x.p === m.p);
+    if (i >= 0) pairQueue.splice(i, 1);
+    toast(m.ok ? "„" + m.n + "“ darf jetzt steuern" + (m.r ? " – als " + m.r : "") : "„" + m.n + "“ abgelehnt");
+    showPair(); if (!$("devBox").hidden) loadDevices();
+  }
+  function showPair() {
+    for (let i = pairQueue.length - 1; i >= 0; i--) if (Date.now() - pairQueue[i].t > 120000) pairQueue.splice(i, 1);
+    const top = pairQueue[pairQueue.length - 1];
+    $("pairBar").hidden = !top;
+    if (top) $("pairName").textContent = "„" + top.n + "“";
+  }
+  setInterval(showPair, 5000);
+  async function postJson(url, body) {
+    const r = await fetch(url, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+    let j = {};
+    try { j = await r.json(); } catch (e) {}
+    if (!j.ok) throw new Error(j.error || "Fehler " + r.status);
+    return j;
+  }
+  async function decide(p, approve, role) {
+    try {
+      await postJson("/api/devices", approve ? (role != null ? {approve: p, role} : {approve: p}) : {deny: p});
+    } catch (e) { toast(String(e.message || e), true); }
+    const i = pairQueue.findIndex(x => x.p === p);
+    if (i >= 0) pairQueue.splice(i, 1);
+    showPair(); if (!$("devBox").hidden) loadDevices();
+  }
+  $("pairOk").addEventListener("click", () => { const t = pairQueue[pairQueue.length - 1]; if (t) decide(t.p, true); });
+  $("pairDeny").addEventListener("click", () => { const t = pairQueue[pairQueue.length - 1]; if (t) decide(t.p, false); });
+  /* Eigene Rolle vom Modul übernehmen und die Oberfläche danach richten */
+  const DENY = {keys: "Deine Rolle darf den Flipper nicht bedienen – nur zuschauen.", apps: "Deine Rolle darf keine Apps starten.",
+    cards: "Deine Rolle darf keine Karten emulieren.", power: "Deine Rolle darf das Modul nicht ausschalten."};
+  function setMe(m, quiet) {
+    if (!m || typeof m.pm !== "number") return;
+    const old = me;
+    me = {pm: m.pm, lock: !!m.lock, rid: typeof m.rid === "number" ? m.rid : -1, role: m.role || "",
+      left: typeof m.left === "number" ? m.left : -1, at: Date.now(), dev: m.dev || "", rmt: !!m.rmt};
+    const l = me.left;
+    warned = l > 300 ? 1e9 : l > 60 ? 300 : 60;
+    if (!quiet && old.at) {
+      if (old.rid !== me.rid && me.rid >= 0) toast("Deine Rolle ist jetzt „" + me.role + "“");
+      else if (old.pm !== me.pm) toast("Deine Rechte wurden geändert");
+      else if (l >= 0 && (old.left < 0 || l > old.left - Math.floor((me.at - old.at) / 1000) + 5)) toast("Deine Zeit wurde neu gestartet");
+    }
+    if ((old.pm & P.admin) && !(me.pm & P.admin) && $("sheet").classList.contains("open")) closeSheets();
+    if (!may(P.keys)) releaseAll();
+    applyPerms();
+  }
+  function applyPerms() {
+    $("fileBtn").hidden = !may(P.files);
+    $("favsLabel").hidden = $("favs").hidden = !may(P.cards);
+    $("appsLabel").hidden = $("apps").hidden = !may(P.apps);
+    document.querySelector(".controls").classList.toggle("nokeys", !may(P.keys));
+    $("lowKeep").hidden = !may(P.power);
+    $("emuStop").hidden = !may(P.cards);
+    if (!may(P.approve)) { pairQueue.length = 0; showPair(); }
+    document.querySelectorAll("#sheet [data-need]").forEach(el => {
+      el.hidden = !el.dataset.need.split(" ").some(n => may(P[n]));
+    });
+    if (!may(P.admin)) $("fwSection").hidden = true;
+    $("rmtSec").hidden = !(may(P.admin) ? rmtAvail : me.rmt && may(P.remote));
+    if ((!may(P.files) && $("fileSheet").classList.contains("open")) || (!may(P.cards) && $("cardSheet").classList.contains("open"))) closeSheets();
+    renderAccess();
+  }
+  function permText(pm) {
+    if (pm & P.admin) return "alles";
+    const n = PERMS.filter(x => pm & x[0]).map(x => x[1]);
+    return n.length ? n.join(", ") : "nur zuschauen";
+  }
+  function fmtLeft(s) {
+    if (s < 60) return "unter 1 Min";
+    const m = Math.ceil(s / 60), d = Math.floor(m / 1440), h = Math.floor(m % 1440 / 60), mm = m % 60;
+    if (d) return d + (d === 1 ? " Tag" : " Tage") + (h ? " " + h + " Std" : "");
+    return h ? h + " Std" + (mm ? " " + mm + " Min" : "") : mm + " Min";
+  }
+  function fmtMin(m) {
+    if (m % 1440 === 0) return m / 1440 + (m === 1440 ? " Tag" : " Tagen");
+    return fmtLeft(m * 60);
+  }
+  function roleSuffix() {
+    if (!hasRole()) return "";
+    const l = leftNow();
+    return " · " + me.role + (l >= 0 ? " · noch " + fmtLeft(l) : "");
+  }
+  function renderAccess() {
+    $("accBox").hidden = !hasRole();
+    if (!hasRole()) return;
+    const l = leftNow();
+    $("accState").innerHTML = "<b>" + esc(me.dev || "Dieses Gerät") + "</b> · Rolle <b>" + esc(me.role) + "</b><br>Darf: " + esc(permText(me.pm)) + "<br>" +
+      (l === -1 ? "Zugang ohne Zeitgrenze" : l === -2 ? "Zeitgrenze: Restzeit gerade unbekannt" : "Zugang endet in <b>" + fmtLeft(l) + "</b> – danach neu um Freigabe fragen");
+  }
+  /* Fern-Modus: Koppeln und „kein Zugriff“ */
+  const RBOX = {
+    pair: ["Fernzugriff einrichten", "Diese Seite steuert deinen Flipper übers Internet. Dafür braucht sie den Kopplungscode deines Geräts: Öffne zu Hause (im WLAN des Moduls oder im Heim-WLAN) ⚙️ → „Fernzugriff übers Internet“ → „Kopplungslink erzeugen“ und tippe „Öffnen“ – oder kopiere den Code hier hinein."],
+    perm: ["Kein Fernzugriff", "Dein Gerät darf nicht übers Internet steuern. Ein Admin kann bei deiner Rolle „Fernzugriff übers Internet“ einschalten."],
+    lock: ["Kein Fernzugriff", "Am Modul ist „Im WLAN nur freigegebene Geräte“ aus – ohne diese Sperre gibt es keinen Fernzugriff."],
+    gone: ["Schlüssel ungültig", "Dieses Gerät ist am Modul nicht mehr freigegeben (entfernt oder Zeit abgelaufen) – damit gilt auch sein Kopplungscode nicht mehr. Hol dir zu Hause einen neuen."],
+    exp: ["Zeit abgelaufen", "Der Zugang dieses Geräts war zeitlich begrenzt und ist abgelaufen. Frag zu Hause neu um Freigabe und hol dir dann einen neuen Kopplungscode."],
+    crypto: ["Geht so nicht", "Der Fernzugriff braucht eine sichere Verbindung (https). Öffne die Fernbedienungs-Seite über ihre https-Adresse."],
+  };
+  function showRemoteBox(kind) {
+    const t = RBOX[kind] || RBOX.pair;
+    // Gerät entfernt / Zeit abgelaufen: dieser Code wird nie wieder gültig (eine neue Freigabe gibt einen neuen)
+    if ((kind === "gone" || kind === "exp") && Rem.pair) try { localStorage.setItem("fr-remote-dead", Rem.pair.code + "|" + kind); } catch (e) {}
+    $("rTitle").textContent = t[0]; $("rText").textContent = t[1];
+    $("rMsg").textContent = "";
+    locked = true; clearTimeout(retryTimer);
+    if (ws) { const old = ws; ws = null; wsOpen = false; try { old.close(); } catch (e) {} }
+    closeSheets(); releaseAll(false);
+    $("rbox").hidden = false;
+  }
+  $("rPair").addEventListener("click", () => {
+    const p = parsePair($("rCode").value.replace(/^.*[#&]fz=/, ""));
+    if (!p) { $("rMsg").className = "formmsg err"; $("rMsg").textContent = "Das ist kein gültiger Kopplungscode."; return; }
+    try { localStorage.setItem("fr-remote", p.code); } catch (e) {}
+    location.hash = "fz=" + p.code; // bleibt in der Adresse – so auch in der App vom Home-Bildschirm
+    location.reload();
+  });
+  async function startRemote() {
+    const pair = loadPair();
+    if (!subtle) return showRemoteBox("crypto");
+    if (!pair) return showRemoteBox("pair");
+    let dead = "";
+    try { dead = localStorage.getItem("fr-remote-dead") || ""; } catch (e) {}
+    if (dead.split("|")[0] === pair.code) return showRemoteBox(dead.split("|")[1] || "gone");
+    await Rem.start(pair);
+    const w = await whoami();
+    if (Rem.st === "refused") return showRemoteBox(Rem.why);
+    if (w) setMe(w, true);
+    if (w && w.lock && !w.allowed) showRemoteBox(w.exp ? "exp" : w.gone ? "gone" : "perm"); else connect();
+  }
+  // Modul hat abgelehnt (WELCOME/X): Fern-Bildschirm
+  { const st0 = Rem.setSt; Rem.setSt = function (st, why) { st0.call(this, st, why); if (st === "refused" && $("rbox").hidden) showRemoteBox(why); }; }
+
+  function send(s) { if (ws && wsOpen) { try { ws.send(s); return true; } catch (e) {} } return false; }
+  function ping() { send("P" + Date.now()); }
+  setInterval(ping, 2000);
+  // Wachhund: Das Modul schickt jede Sekunde den Status. Kommt 6 s lang nichts, ist die
+  // Verbindung tot (WLAN weg), auch wenn der Browser das noch nicht bemerkt hat.
+  function dropDead() {
+    if (!ws) return;
+    if (wsOpen ? Date.now() - lastRx < 6000 : Date.now() - connectStarted < 8000) return;
+    const old = ws;
+    wsOpen = false; ws = null; rtt = null; releaseAll(false); link = -1;
+    try { old.close(); } catch (e) {}
+    updateUi(); connect();
+  }
+  setInterval(dropDead, 1000);
+
+  /* ---------- Bildschirm ---------- */
+  function unpack(src, off) {
+    const out = new Uint8Array(1024);
+    let o = 0, i = off;
+    while (i < src.length && o < 1024) {
+      const n = src[i++];
+      if (n < 128) {
+        const c = Math.min(n + 1, 1024 - o, src.length - i);
+        out.set(src.subarray(i, i + c), o); o += c; i += c;
+      } else if (n > 128) {
+        const c = Math.min(257 - n, 1024 - o);
+        out.fill(src[i++], o, o + c); o += c;
+      }
+    }
+    return out;
+  }
+
+  /* Gezeichnet wird im Bildtakt des Displays: Kommen zwei Bilder kurz hintereinander
+     an, wird nur das neueste gemalt – das spart Arbeit und hält die Bedienung flüssig. */
+  let nextFb = null, nextO = 0, drawPending = false;
+  function onFrame(u8) {
+    if (u8.length < 3) return;
+    const fb = u8[0] === 2 ? unpack(u8, 2) : u8.slice(2, 2 + 1024);
+    if (fb.length < 1024) return;
+    nextFb = fb; nextO = u8[1] & 3;
+    if (!drawPending) { drawPending = true; requestAnimationFrame(drawNext); }
+    if (!haveFrame) { haveFrame = true; updateUi(); }
+  }
+  function drawNext() {
+    drawPending = false;
+    if (!nextFb) return;
+    const fb = nextFb; nextFb = null;
+    render(fb, nextO);
+  }
+
+  function render(fb, o) {
+    const vertical = o === 2 || o === 3;
+    const w = vertical ? 64 : 128, h = vertical ? 128 : 64;
+    if (o !== orientation || !img) {
+      orientation = o;
+      canvas.width = w; canvas.height = h;
+      $("lcd").classList.toggle("vertical", vertical);
+      img = ctx.createImageData(w, h);
+    }
+    const px = new Uint32Array(img.data.buffer);
+    for (let y = 0; y < 64; y++) {
+      const row = (y >> 3) * 128, bit = 1 << (y & 7);
+      for (let x = 0; x < 128; x++) {
+        const on = fb[row + x] & bit;
+        let i;
+        switch (o) {
+          case 0: i = y * 128 + x; break;
+          case 1: i = (63 - y) * 128 + (127 - x); break;
+          case 2: i = x * 64 + (63 - y); break;   // 90° im Uhrzeigersinn
+          default: i = (127 - x) * 64 + y;        // 270°
+        }
+        px[i] = on ? ON : OFF;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+
+  /* ---------- Status ---------- */
+  function onStatus(s) {
+    syncEmuFromStatus(s);
+    lastStatus = s;
+    if (s.l !== 0) searchingSince = 0;
+    else if (link !== 0) searchingSince = Date.now();
+    link = s.l;
+    updateUi();
+  }
+
+  function updateUi() {
+    const conn = $("conn"), s = lastStatus;
+    let state, title = "", text = "", spinner = true, dim = true;
+    if (!wsOpen && moduleOff && offWhy) {
+      conn.dataset.s = "bad";
+      state = "Modul ist aus · Akku schwach";
+      title = "Modul ist aus – Akku schwach";
+      text = "Der Akku des Flippers war " + (offWhy.b >= 0 ? "bei " + offWhy.b + " %" : "schwach") +
+        ". Das Modul bleibt aus, auch Bluetooth weckt es nicht. Sobald der Flipper lädt, geht es von selbst wieder an (es sieht alle 15 Minuten nach). Sofort an: BOOT oder RESET am Board. Die Fernbedienung verbindet sich danach von selbst.";
+      spinner = false;
+    } else if (!wsOpen && moduleOff) {
+      conn.dataset.s = "bad";
+      state = "Modul ist aus";
+      title = "Modul ist aus";
+      text = "Zum Einschalten die Flipper-App neu öffnen (neue Bluetooth-Verbindung zum Flipper) oder BOOT am Board drücken. Die Fernbedienung verbindet sich danach von selbst.";
+      spinner = false;
+    } else if (!wsOpen && REMOTE) {
+      const t = {idle: "Nicht gekoppelt", broker: "Verbinde mit dem Vermittler…", hello: "Suche Modul übers Internet…", ready: "Verbinde…",
+        busy: "Modul ist voll belegt", refused: "Kein Fernzugriff"}[Rem.st] || "Verbinde…";
+      conn.dataset.s = Rem.st === "refused" ? "bad" : "busy";
+      state = title = t;
+      text = Rem.st === "broker" ? "Kommt dein Handy gerade ins Internet? Der Vermittler ist nicht erreichbar." :
+        Rem.st === "hello" ? "Das Modul antwortet nicht. Ist es an, mit einem WLAN mit Internet verbunden und der Fernzugriff eingeschaltet? Schläft es („Aus“, Tiefschlaf), ist es auch übers Internet nicht da. Wurde dein Gerät am Modul entfernt, gilt auch dieser Kopplungscode nicht mehr." :
+        Rem.st === "busy" ? "Gerade sind schon 3 Geräte übers Internet verbunden – neuer Versuch in ein paar Sekunden." : "";
+      spinner = Rem.st !== "refused";
+    } else if (!wsOpen) {
+      conn.dataset.s = everConnected ? "bad" : "busy";
+      state = everConnected ? "Modul nicht erreichbar" : "Verbinde mit Modul…";
+      title = everConnected ? "Modul nicht erreichbar" : "Verbinde…";
+      text = "Ist dein iPhone im WLAN „Flipper-Remote-…“, im selben Heim-WLAN wie das Modul oder ist dein Hotspot an? Bei schwachem Signal näher herangehen.";
+      spinner = !everConnected;
+    } else if (link === 2) {
+      conn.dataset.s = "ok";
+      const rs = roleSuffix();
+      state = REMOTE ? "Verbunden · über Internet" + rs : rs ? "Verbunden" + rs : s && s.nw === "sta" ? "Verbunden · über Heim-WLAN" : "Verbunden";
+      dim = !haveFrame;
+      title = "Warte auf Bild…";
+    } else if (link === 3) {
+      conn.dataset.s = "busy";
+      state = "Wecke Flipper…";
+      title = "Wecke Flipper…";
+    } else if (link === 1) {
+      conn.dataset.s = "busy";
+      state = "Verbinde mit Flipper…";
+      title = "Verbinde mit Flipper…";
+    } else {
+      conn.dataset.s = "busy";
+      state = "Suche Flipper…";
+      title = "Suche Flipper…";
+      if (searchingSince && Date.now() - searchingSince > 3000)
+        text = "Flipper an? Kabel richtig (Pins 9, 11, 13, 14)? Am Flipper: Einstellungen → Expansion Modules → USART.";
+    }
+    $("connState").textContent = state;
+    // Zeitgrenze: in den letzten 5 Minuten gelb, Hinweise bei 5 und 1 Minute
+    const l = hasRole() ? leftNow() : -1;
+    $("connState").classList.toggle("warn", wsOpen && l >= 0 && l <= 300);
+    if (wsOpen && l >= 0) {
+      if (l <= 60 && warned > 60) { warned = 60; toast("Dein Zugang endet in unter einer Minute", true); }
+      else if (l <= 300 && warned > 300) { warned = 300; toast("Dein Zugang endet in 5 Minuten"); }
+    }
+    if ($("sheet").classList.contains("open")) renderAccess();
+    $("connName").textContent = (s && s.n) || "Flipper";
+    $("ovTitle").innerHTML = (spinner ? '<span class="spin"></span>' : "") + esc(title);
+    $("ovText").textContent = text;
+    $("lcd").classList.toggle("dim", dim);
+
+    // Signal (am Modul gemessen)
+    const r = s && wsOpen ? s.r : 0;
+    const q = !r ? 0 : r >= -55 ? 4 : r >= -65 ? 3 : r >= -75 ? 2 : 1;
+    $("sig").dataset.q = q;
+    $("rssi").textContent = r ? r : "–";
+
+    // Akku
+    const b = s && wsOpen && s.b >= 0 ? s.b : -1;
+    $("batFill").style.width = (b >= 0 ? b : 0) + "%";
+    $("batText").textContent = b >= 0 ? b + "%" : "–";
+    $("bat").classList.toggle("low", b >= 0 && b <= 15);
+    $("bat").classList.toggle("chg", !!(s && s.ch));
+    updateLed(s && wsOpen && link === 2 ? s : null);
+    updateLowBat(s && wsOpen ? s : null);
+    updateStats();
+  }
+
+  /* Schwacher Flipper-Akku: Das Modul meldet im Status, wie viele Sekunden es noch an ist */
+  let lowKeptAt = 0;
+  function updateLowBat(s) {
+    const left = s && typeof s.lb === "number" ? s.lb : -1;
+    const show = left >= 0 && Date.now() - lowKeptAt > 3000;
+    $("lowBar").hidden = !show;
+    if (!show) return;
+    $("lowTitle").textContent = "Flipper-Akku " + (s.b >= 0 ? s.b + " %" : "schwach");
+    $("lowText").textContent = left > 0 ? "Modul geht in " + left + " s aus" : "Modul geht jetzt aus";
+  }
+  $("lowKeep").addEventListener("click", () => {
+    if (!send("K")) return toast("Keine Verbindung zum Modul", true);
+    lowKeptAt = Date.now();
+    $("lowBar").hidden = true;
+    toast("Bleibt an, solange du die App nutzt – danach geht es aus");
+  });
+
+  /* Die echte LED lässt sich nicht auslesen. Nachgebildet wird, was sicher bekannt ist:
+     Karten-Emulation → blinkt lila (NFC, RFID, iButton), sonst Ladezustand wie beim
+     Flipper selbst: lädt → rot, voll (am USB) → grün, sonst aus. */
+  let ledText = "";
+  function updateLed(s) {
+    let c = "off";
+    if (!s) ledText = "unbekannt – Flipper nicht verbunden";
+    else if (s.es === 2) { c = "magenta"; ledText = "blinkt lila – Karte wird emuliert"; }
+    else if (s.cs === 2 || (s.cs === 1 && s.b >= 100)) { c = "green"; ledText = "grün – voll geladen"; }
+    else if (s.cs === 1) { c = "red"; ledText = "rot – lädt"; }
+    else ledText = "aus";
+    const el = $("fled");
+    if (el.dataset.c !== c) el.dataset.c = c;
+    el.setAttribute("aria-label", "Status-LED des Flippers: " + ledText);
+  }
+  $("fled").addEventListener("click", () => toast("Flipper-LED: " + ledText + " (nachgebildet aus Akku- und Kartenstatus)"));
+
+  function updateStats() {
+    const s = lastStatus;
+    $("stFps").textContent = s && wsOpen && link === 2 ? Math.round(s.f / 10) + " Bilder/s" : "– Bilder/s";
+    const p = $("stPing");
+    p.textContent = rtt != null && wsOpen ? "Ping " + rtt + " ms" : "Ping –";
+    p.classList.toggle("warn", rtt != null && rtt > 250);
+    $("stLink").textContent = s && wsOpen && link === 2 ? Math.floor(s.br / 1000) + "k Baud" : s && wsOpen ? "Flipper getrennt" : "offline";
+  }
+  setInterval(updateUi, 1000);
+
+  function onResult(m) {
+    if (m.k === "stream" && m.s !== 0) return toast("Der Flipper überträgt kein Bild (Fehler " + m.s + ")", true);
+    if (m.k !== "app") return;
+    const name = (APPS.find(a => a[0] === m.a) || [0, m.a])[1];
+    if (m.s === 0) toast(name + " gestartet");
+    else if (m.s === 17) toast("Es läuft schon eine App. Erst mit „Zurück“ beenden.", true);
+    else if (m.s === 65535) toast("Flipper ist nicht verbunden.", true);
+    else if (m.s === 15) toast(name + " gibt es auf diesem Flipper nicht.", true);
+    else toast(name + " konnte nicht starten (Fehler " + m.s + ")", true);
+  }
+
+  /* ---------- Tasten ---------- */
+  const hap = $("hap");
+  function haptic() {
+    if (!prefs.haptic) return;
+    try { hap.click(); } catch (e) {}
+    if (navigator.vibrate) try { navigator.vibrate(8); } catch (e) {}
+  }
+
+  function physKey(name) {
+    if (name === "ok" || name === "back") return PHYS[name];
+    const map = prefs.rotate ? ROT[orientation] : ROT[0];
+    return PHYS[map[name]];
+  }
+
+  let denyAt = 0;
+  function press(id, el) {
+    if (holds.has(id) || !el) return;
+    if (!may(P.keys)) {
+      if (Date.now() - denyAt > 2500) { denyAt = Date.now(); toast("Nur zuschauen: Deine Rolle „" + me.role + "“ darf den Flipper nicht bedienen.", true); }
+      return;
+    }
+    const k = physKey(el.dataset.k);
+    for (const h of holds.values()) if (h.k === k) return;
+    const h = {k, el, t: Date.now()};
+    holds.set(id, h);
+    el.classList.add("pressed");
+    haptic();
+    if (!wsOpen) toast(moduleOff ? "Das Modul ist aus" : "Keine Verbindung zum Modul", true);
+    else if (link !== 2) toast("Flipper ist nicht verbunden", true);
+    send("d" + k);
+    h.alive = setInterval(() => send("a" + k), 250);
+    h.long = setTimeout(() => el.classList.add("long"), 300);
+  }
+
+  function release(id, sendUp = true) {
+    const h = holds.get(id);
+    if (!h) return;
+    holds.delete(id);
+    clearInterval(h.alive); clearTimeout(h.long);
+    h.el.classList.remove("pressed", "long");
+    if (sendUp) send("u" + h.k);
+  }
+  function releaseAll(sendUp = true) { for (const id of [...holds.keys()]) release(id, sendUp); }
+
+  document.querySelectorAll("[data-k]").forEach(el => {
+    el.addEventListener("pointerdown", e => {
+      e.preventDefault();
+      try { el.setPointerCapture(e.pointerId); } catch (x) {}
+      press(e.pointerId, el);
+    });
+    const up = e => release(e.pointerId);
+    el.addEventListener("pointerup", up);
+    el.addEventListener("pointercancel", up);
+    el.addEventListener("lostpointercapture", up);
+    el.addEventListener("contextmenu", e => e.preventDefault());
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) return releaseAll();
+    // zurück in der App: nicht auf den nächsten Zeitgeber warten (iOS hält sie im Hintergrund an)
+    if (wsOpen) { lastRx = Date.now(); ping(); } else connect();
+  });
+  window.addEventListener("online", () => { if (!wsOpen) connect(); });
+  window.addEventListener("blur", () => releaseAll());
+  document.addEventListener("gesturestart", e => e.preventDefault());
+
+  // Tastatur (z. B. am Mac/iPad)
+  const KB = {ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", Enter: "ok", " ": "ok", Backspace: "back", Escape: "back"};
+  document.addEventListener("keydown", e => {
+    if (locked || document.body.classList.contains("sheet-open") || e.repeat) return;
+    const name = KB[e.key]; if (!name) return;
+    e.preventDefault();
+    press("kb-" + e.key, document.querySelector('[data-k="' + name + '"]'));
+  });
+  document.addEventListener("keyup", e => release("kb-" + e.key));
+
+
+  /* ---------- Karten: Liste, Emulation, Favoriten ---------- */
+  const KINDS = {
+    n: {dir: "/ext/nfc", ext: ".nfc", label: "NFC", short: "NFC"},
+    r: {dir: "/ext/lfrfid", ext: ".rfid", label: "RFID 125 kHz", short: "RFID"},
+    i: {dir: "/ext/ibutton", ext: ".ibtn", label: "iButton", short: "iBtn"},
+  };
+  const SKIP_DIRS = ["assets", ".cache", "cache"];
+  let emu = {st: "idle", k: "", p: ""};
+  let emuLocalUntil = 0; // so lange zählt die eigene Eingabe mehr als der (evtl. ältere) Sekundenstatus
+  let favs = [];
+  let cardKind = "n";
+  const cardCache = {};
+  const lsWait = new Map();
+  let lsChain = Promise.resolve();
+
+  // Dateinamen vom Flipper sind Bytes. Was kein UTF-8 ist (am PC angelegte Dateien: Codepage 850),
+  // schickt das Modul als U+F780..U+F7FF; für die Anzeige wird daraus das CP850-Zeichen.
+  // Zum Flipper zurück geht immer der unveränderte Pfad.
+  const CP850 = "ÇüéâäàåçêëèïîìÄÅÉæÆôöòûùÿÖÜø£Ø×ƒáíóúñÑªº¿®¬½¼¡«»░▒▓│┤ÁÂÀ©╣║╗╝¢¥┐└┴┬├─┼ãÃ╚╔╩╦╠═╬¤ðÐÊËÈıÍÎÏ┘┌█▄¦Ì▀ÓßÔÒõÕµþÞÚÛÙýÝ¯´\u00ad±‗¾¶§÷¸°¨·¹³²■\u00a0";
+  function disp(s) { return String(s).replace(/[\uF780-\uF7FF]/g, c => CP850[c.charCodeAt(0) - 0xF780]); }
+  function cardName(p) { const f = disp(p).split("/").pop(); const i = f.lastIndexOf("."); return i > 0 ? f.slice(0, i) : f; }
+  function cardFolder(k, p) { const rel = disp(p).slice(KINDS[k].dir.length + 1).split("/"); rel.pop(); return rel.join(" / "); }
+
+  function onList(m) {
+    const w = lsWait.get(m.p);
+    if (!w) return;
+    for (const f of m.f || []) w.items.push(f);
+    if (m.d) { lsWait.delete(m.p); clearTimeout(w.timer); w.resolve({status: m.s, items: w.items}); }
+  }
+
+  // Ein Ordner; das Modul bearbeitet immer nur eine Liste gleichzeitig -> hintereinander
+  function listDir(path) {
+    const run = () => new Promise(resolve => {
+      const w = {items: [], resolve};
+      w.timer = setTimeout(() => { lsWait.delete(path); resolve({status: 65534, items: []}); }, 8000);
+      lsWait.set(path, w);
+      if (!send("L" + path)) { clearTimeout(w.timer); lsWait.delete(path); resolve({status: 65535, items: []}); }
+    });
+    const attempt = async () => {
+      for (let i = 0; i < 6; i++) {
+        const r = await run();
+        if (r.status !== 4) return r;
+        await new Promise(res => setTimeout(res, 300));
+      }
+      return {status: 4, items: []};
+    };
+    const p = lsChain.then(attempt);
+    lsChain = p.catch(() => {});
+    return p;
+  }
+
+  async function loadCards(k, force) {
+    if (cardCache[k] && !force) return cardCache[k];
+    const kind = KINDS[k], found = [];
+    const queue = [[kind.dir, 0]];
+    let dirs = 0, firstStatus = null;
+    while (queue.length && dirs < 40) {
+      const [dir, depth] = queue.shift();
+      dirs++;
+      const r = await listDir(dir);
+      if (firstStatus === null) firstStatus = r.status;
+      if (r.status !== 0) continue;
+      for (const [name, , isDir] of r.items) {
+        const path = dir + "/" + name;
+        if (isDir) {
+          if (depth < 3 && !SKIP_DIRS.includes(name) && !name.startsWith(".")) queue.push([path, depth + 1]);
+        } else if (name.toLowerCase().endsWith(kind.ext) && !name.startsWith(".")) {
+          found.push(path);
+        }
+      }
+    }
+    if (firstStatus !== 0 && firstStatus !== 7) throw firstStatus; // 7 = Ordner fehlt -> einfach leer
+    found.sort((a, b) => disp(a).localeCompare(disp(b), "de", {sensitivity: "base", numeric: true}));
+    cardCache[k] = found;
+    return found;
+  }
+
+  const EMU_ERR = {
+    17: "Am Flipper ist noch eine App offen. Erst mit Zurück beenden.",
+    22: "Die Karte konnte nicht geladen werden.",
+    7: "Datei nicht gefunden.",
+    21: "Die App auf dem Flipper läuft nicht mehr.",
+    65535: "Flipper ist nicht verbunden.",
+    65534: "Der Flipper hat nicht geantwortet.",
+    65533: "Ungültige Karte.",
+    4: "Der Flipper ist gerade beschäftigt.",
+  };
+
+  function emulate(k, p) {
+    haptic();
+    if (!wsOpen) return toast("Keine Verbindung zum Modul", true);
+    if (link !== 2) return toast("Flipper ist nicht verbunden", true);
+    if (emu.st !== "idle" && emu.p === p) return stopEmu(); // nochmal tippen = stoppen
+    if (!send("E" + k + p)) return toast("Keine Verbindung zum Modul", true);
+    emuLocalUntil = Date.now() + 2500;
+    setEmu({st: "starting", k, p});
+  }
+  function stopEmu() { haptic(); send("S"); }
+
+  function setEmu(e) {
+    emu = e;
+    $("lcd").classList.toggle("emupause", e.st !== "idle");
+    const bar = $("emuBar");
+    bar.hidden = e.st === "idle" || !e.p;
+    bar.classList.toggle("starting", e.st === "starting");
+    if (!bar.hidden) {
+      const kind = KINDS[e.k] || KINDS.n;
+      $("emuName").textContent = cardName(e.p);
+      $("emuState").textContent = e.st === "starting" ? "Starte " + kind.label + "…" : kind.label + " wird emuliert";
+    }
+    renderFavs();
+    if (document.getElementById("cardSheet").classList.contains("open")) renderCards();
+  }
+
+  function onEmu(m) {
+    emuLocalUntil = 0;
+    if (m.st === "error") {
+      toast(EMU_ERR[m.s] || ("Emulation fehlgeschlagen (Fehler " + m.s + ")"), true);
+      if (emu.p === m.p) setEmu({st: "idle", k: "", p: ""});
+      return;
+    }
+    if (m.st === "active" && emu.st !== "active") toast(cardName(m.p) + " wird emuliert");
+    setEmu({st: m.st, k: m.k, p: m.p});
+  }
+
+  // Status kommt jede Sekunde -> hält auch weitere Geräte synchron
+  function syncEmuFromStatus(s) {
+    if (s.es === undefined || Date.now() < emuLocalUntil) return;
+    const st = ["idle", "starting", "active"][s.es] || "idle";
+    if (st !== emu.st || (s.ep || "") !== emu.p) setEmu({st, k: s.ek, p: s.ep || ""});
+  }
+
+  async function loadFavs() {
+    try {
+      const r = await fetch("/api/favorites", {cache: "no-store"});
+      const j = await r.json();
+      if (Array.isArray(j)) favs = j.filter(f => f && KINDS[f.k] && typeof f.p === "string");
+    } catch (e) {}
+    renderFavs();
+  }
+  async function saveFavs() {
+    try {
+      const r = await fetch("/api/favorites", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(favs)});
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error);
+    } catch (e) { toast("Schnellwahl konnte nicht gespeichert werden", true); }
+  }
+  function isFav(p) { return favs.some(f => f.p === p); }
+  function toggleFav(k, p) {
+    haptic();
+    if (isFav(p)) favs = favs.filter(f => f.p !== p);
+    else if (favs.length >= 24) return toast("Höchstens 24 Karten in der Schnellwahl", true);
+    else favs.push({k, p});
+    renderFavs(); renderCards(); saveFavs();
+  }
+
+  function renderFavs() {
+    const el = $("favs");
+    el.innerHTML = "";
+    for (const f of favs) {
+      const b = document.createElement("button");
+      b.className = "chip fav" + (emu.p === f.p && emu.st !== "idle" ? " active" : "");
+      b.innerHTML = '<span class="kind">' + KINDS[f.k].short + "</span><span>" + esc(cardName(f.p)) + "</span>";
+      b.addEventListener("click", () => emulate(f.k, f.p));
+      el.appendChild(b);
+    }
+    const all = document.createElement("button");
+    all.className = "chip all";
+    all.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg>' +
+      (favs.length ? "Alle Karten" : "Karten wählen…");
+    all.addEventListener("click", openCards);
+    el.appendChild(all);
+  }
+
+  function renderCards(state) {
+    const list = $("cardList");
+    if (state && state.loading) { list.innerHTML = '<div class="cardmsg"><span class="spin"></span>Lese Karten vom Flipper…</div>'; return; }
+    if (state && state.error !== undefined) {
+      list.innerHTML = '<div class="cardmsg">' + esc(EMU_ERR[state.error] || "Karten konnten nicht gelesen werden (Fehler " + state.error + ").") + "</div>";
+      return;
+    }
+    const all = cardCache[cardKind];
+    if (!all) return;
+    const q = $("cardSearch").value.trim().toLowerCase();
+    const items = all.filter(p => !q || disp(p).slice(KINDS[cardKind].dir.length).toLowerCase().includes(q));
+    list.innerHTML = "";
+    if (!items.length) {
+      list.innerHTML = '<div class="cardmsg">' + (all.length ? "Keine Treffer." :
+        "Keine " + KINDS[cardKind].label + "-Karten auf dem Flipper gefunden (" + KINDS[cardKind].dir + ").") + "</div>";
+      return;
+    }
+    for (const p of items) {
+      const row = document.createElement("div");
+      row.className = "card-row" + (emu.p === p && emu.st !== "idle" ? " active" : "");
+      const folder = cardFolder(cardKind, p);
+      const state = emu.p === p ? (emu.st === "active" ? "wird emuliert" : emu.st === "starting" ? "startet…" : "") : "";
+      row.innerHTML = '<button class="card-main"><span class="card-ico">' + KINDS[cardKind].short + '</span><span class="card-txt"><b>' +
+        esc(cardName(p)) + "</b><small>" + esc(state || folder || " ") + '</small></span></button><button class="star' +
+        (isFav(p) ? " on" : "") + '" aria-label="Schnellwahl">' + (isFav(p) ? "★" : "☆") + "</button>";
+      const k = cardKind;
+      row.querySelector(".card-main").addEventListener("click", () => { emulate(k, p); closeSheets(); });
+      row.querySelector(".star").addEventListener("click", () => toggleFav(k, p));
+      list.appendChild(row);
+    }
+  }
+
+  async function showKind(k, force) {
+    if (k !== cardKind) $("cardSearch").value = "";
+    cardKind = k;
+    document.querySelectorAll("#kindSeg button").forEach(b => b.classList.toggle("on", b.dataset.kind === k));
+    if (!cardCache[k] || force) renderCards({loading: true});
+    try { await loadCards(k, force); if (cardKind === k) renderCards(); }
+    catch (err) { if (cardKind === k) renderCards({error: err}); }
+  }
+
+  function openCards() {
+    haptic();
+    releaseAll();
+    openSheetEl("cardSheet");
+    if (!wsOpen) return renderCards({error: 65535});
+    if (link !== 2) return renderCards({error: 65535});
+    showKind(cardKind, false);
+  }
+
+  document.querySelectorAll("#kindSeg button").forEach(b => b.addEventListener("click", () => showKind(b.dataset.kind, false)));
+  $("cardReload").addEventListener("click", () => showKind(cardKind, true));
+  $("cardSearch").addEventListener("input", () => renderCards());
+  $("cardClose").addEventListener("click", closeSheets);
+  $("emuStop").addEventListener("click", stopEmu);
+
+  /* ---------- Apps ---------- */
+  const appsEl = $("apps");
+  for (const [name, label, path] of APPS) {
+    const b = document.createElement("button");
+    b.className = "chip";
+    b.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="' + path + '"/></svg>' + esc(label);
+    b.addEventListener("click", () => {
+      haptic();
+      if (!wsOpen) return toast("Keine Verbindung zum Modul", true);
+      if (link !== 2) return toast("Flipper ist nicht verbunden", true);
+      send("A" + name);
+      toast("Starte " + label + "…");
+    });
+    appsEl.appendChild(b);
+  }
+
+  /* ---------- Datei an den Flipper ----------
+     Ablauf: "W<größe>:<pfad>" -> Modul quittiert ("ack" 0) -> Datei in 512-Byte-Stücken als
+     Binär-Frames; höchstens 2 Stücke unbestätigt. Das Modul quittiert erst, wenn der
+     Flipper ein Stück auf die SD-Karte geschrieben hat. */
+  const UP_CHUNK = 512, UP_WINDOW = 2;
+  const EXT_DIR = {sub: "/ext/subghz", nfc: "/ext/nfc", rfid: "/ext/lfrfid", ir: "/ext/infrared", ibtn: "/ext/ibutton",
+    txt: "/ext/badusb", fap: "/ext/apps", js: "/ext/apps/Scripts", u2f: "/ext/u2f"};
+  const FOLDER_CHIPS = [["Sub-GHz", "/ext/subghz"], ["NFC", "/ext/nfc"], ["RFID", "/ext/lfrfid"], ["Infrarot", "/ext/infrared"],
+    ["iButton", "/ext/ibutton"], ["BadUSB", "/ext/badusb"], ["Apps", "/ext/apps"], ["SD-Karte", "/ext"]];
+  const UP_ERR = {4: "Der Flipper ist gerade beschäftigt (Karten-Emulation, Dateiliste oder ein anderer Upload).",
+    5: "Die SD-Karte ist nicht bereit.", 7: "Diesen Ordner gibt es auf dem Flipper nicht.",
+    9: "Zugriff verweigert – ist die SD-Karte schreibgeschützt?", 10: "Ungültiger Dateiname (erlaubt: Buchstaben a–z, Ziffern, einfache Zeichen).",
+    11: "Schreibfehler – ist die SD-Karte voll?", 14: "Übertragung wurde unterbrochen.",
+    65535: "Verbindung abgerissen – nicht gespeichert (auf dem Flipper liegt höchstens eine angefangene „….part“-Datei).", 65534: "Zeitüberschreitung.", 65533: "Ungültiger Pfad.",
+    65532: "Kam dreimal fehlerhaft an (Prüfsumme falsch) – nichts gespeichert, eine vorhandene Datei ist unverändert."};
+  const UP_TRIES = 3; // so oft wird eine Datei mit falscher Prüfsumme gesendet
+
+  /* MD5 (RFC 1321) der Originaldatei – der Flipper berechnet nach dem Upload dieselbe
+     Prüfsumme über die Datei auf seiner SD-Karte, das Modul vergleicht beide.
+     (Web Crypto kennt kein MD5, daher hier von Hand.) */
+  const MD5_K = new Int32Array(64).map((_, i) => Math.floor(Math.abs(Math.sin(i + 1)) * 4294967296));
+  const MD5_S = [7, 12, 17, 22, 5, 9, 14, 20, 4, 11, 16, 23, 6, 10, 15, 21];
+  function md5(bytes) {
+    const n = bytes.length, words = (((n + 8) >>> 6) + 1) * 16, w = new Int32Array(words);
+    for (let i = 0; i < n; i++) w[i >> 2] |= bytes[i] << ((i & 3) << 3);
+    w[n >> 2] |= 0x80 << ((n & 3) << 3);
+    w[words - 2] = n << 3;
+    w[words - 1] = Math.floor(n / 536870912);
+    let a0 = 0x67452301, b0 = 0xefcdab89 | 0, c0 = 0x98badcfe | 0, d0 = 0x10325476;
+    for (let o = 0; o < words; o += 16) {
+      let a = a0, b = b0, c = c0, d = d0;
+      for (let i = 0; i < 64; i++) {
+        let f, g;
+        if (i < 16) { f = (b & c) | (~b & d); g = i; }
+        else if (i < 32) { f = (d & b) | (~d & c); g = (5 * i + 1) & 15; }
+        else if (i < 48) { f = b ^ c ^ d; g = (3 * i + 5) & 15; }
+        else { f = c ^ (b | ~d); g = (7 * i) & 15; }
+        const s = MD5_S[(i >> 4) * 4 + (i & 3)], t = (a + f + MD5_K[i] + w[o + g]) | 0;
+        a = d; d = c; c = b;
+        b = (b + ((t << s) | (t >>> (32 - s)))) | 0;
+      }
+      a0 = (a0 + a) | 0; b0 = (b0 + b) | 0; c0 = (c0 + c) | 0; d0 = (d0 + d) | 0;
+    }
+    let hex = "";
+    for (const v of [a0, b0, c0, d0]) for (let i = 0; i < 4; i++) hex += ((v >>> (i * 8)) & 255).toString(16).padStart(2, "0");
+    return hex;
+  }
+  let files = [], folder = "/ext", folderItems = [], upCur = null, upBusy = false;
+
+  /* Der Flipper nimmt im Dateinamen nur druckbares ASCII ohne \ < > * | " : ? an */
+  function flipperName(n) {
+    const map = {"ä": "ae", "ö": "oe", "ü": "ue", "Ä": "Ae", "Ö": "Oe", "Ü": "Ue", "ß": "ss"};
+    let t = String(n).replace(/[äöüÄÖÜß]/g, c => map[c]).normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    t = t.replace(/[^\x20-\x7e]/g, "_").replace(/[\\/<>*|":?]/g, "_").trim();
+    if (!t || t === "." || t === "..") t = "Datei";
+    return t.slice(0, 100);
+  }
+  function fmtSize(b) {
+    if (b < 1024) return b + " B";
+    if (b < 1048576) return (b / 1024).toFixed(b < 10240 ? 1 : 0).replace(".", ",") + " KB";
+    return (b / 1048576).toFixed(1).replace(".", ",") + " MB";
+  }
+  function extOf(n) { const i = n.lastIndexOf("."); return i > 0 ? n.slice(i + 1).toLowerCase() : ""; }
+
+  function renderFiles() {
+    const list = $("fileList");
+    list.innerHTML = "";
+    const names = new Set(folderItems.filter(i => !i[2]).map(i => i[0]));
+    files.forEach((f, idx) => {
+      const row = document.createElement("div");
+      row.className = "netrow";
+      let info = fmtSize(f.file.size);
+      if (f.name !== f.file.name) info += " · umbenannt (Flipper mag nur einfache Zeichen)";
+      if (f.st === "done") info = (f.verified ? '<span class="on">gesendet ✓ geprüft</span> · ' : '<span class="on">gesendet</span> · <span class="new">ungeprüft</span> · ') + fmtSize(f.file.size);
+      else if (f.st === "error") info = '<span class="bad">' + esc(f.err) + "</span>";
+      else if (f.st === "sending") info = "wird gesendet …";
+      else if (names.has(f.name)) info += ' · <span class="new">ersetzt die vorhandene Datei</span>';
+      row.innerHTML = '<div class="netinfo"><input class="nameedit" maxlength="100" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Dateiname auf dem Flipper"><small>' +
+        info + '</small></div><button class="netdel" type="button" aria-label="Aus der Liste nehmen">×</button>';
+      const inp = row.querySelector("input");
+      inp.value = f.name;
+      inp.disabled = upBusy || f.st === "done";
+      inp.addEventListener("change", () => { f.name = flipperName(inp.value); f.st = ""; renderFiles(); });
+      row.querySelector(".netdel").disabled = upBusy;
+      row.querySelector(".netdel").addEventListener("click", () => { files.splice(idx, 1); renderFiles(); });
+      list.appendChild(row);
+    });
+    $("fileBox").hidden = !files.length;
+    const left = files.filter(f => f.st !== "done").length;
+    $("fileSend").textContent = upBusy ? "Abbrechen" : left > 1 ? left + " Dateien senden" : "Senden";
+    $("fileSend").classList.toggle("primary", !upBusy);
+    $("fileSend").classList.toggle("danger", upBusy);
+    $("fileSend").disabled = !upBusy && !left;
+    $("filePick").disabled = upBusy;
+  }
+
+  async function showFolder(path) {
+    folder = path;
+    $("folderPath").innerHTML = "<bdi>" + esc(disp(path)) + "</bdi>"; // lange Pfade: vorne abschneiden
+    $("folderUp").disabled = path === "/ext" || upBusy;
+    document.querySelectorAll("#folderChips button").forEach(b => b.classList.toggle("on", b.dataset.p === path));
+    const list = $("folderList");
+    list.innerHTML = '<div class="cardmsg"><span class="spin"></span>Lese Ordner…</div>';
+    folderItems = [];
+    if (!wsOpen || link !== 2) { list.innerHTML = '<div class="cardmsg">Flipper ist nicht verbunden.</div>'; return renderFiles(); }
+    const r = await listDir(path);
+    if (folder !== path) return;
+    if (r.status !== 0) {
+      list.innerHTML = '<div class="cardmsg">' + esc(r.status === 7 ? "Diesen Ordner gibt es auf dem Flipper nicht." : UP_ERR[r.status] || "Ordner konnte nicht gelesen werden (Fehler " + r.status + ").") + "</div>";
+      return renderFiles();
+    }
+    folderItems = r.items;
+    const dirs = r.items.filter(i => i[2] && !i[0].startsWith(".")).sort((a, b) => disp(a[0]).localeCompare(disp(b[0]), "de", {sensitivity: "base"}));
+    const nfiles = r.items.filter(i => !i[2]).length;
+    list.innerHTML = "";
+    for (const [name] of dirs) {
+      const row = document.createElement("div");
+      row.className = "netrow";
+      row.innerHTML = '<svg class="folderico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><div class="netinfo"><b>' +
+        esc(disp(name)) + "</b></div>";
+      row.addEventListener("click", () => { if (!upBusy) showFolder(path + "/" + name); });
+      list.appendChild(row);
+    }
+    const note = document.createElement("div");
+    note.className = "cardmsg";
+    note.style.padding = "8px";
+    note.textContent = (dirs.length ? "" : "Keine Unterordner. ") + nfiles + (nfiles === 1 ? " Datei" : " Dateien") + " in diesem Ordner.";
+    list.appendChild(note);
+    renderFiles();
+  }
+
+  function openFiles() {
+    haptic(); releaseAll();
+    openSheetEl("fileSheet");
+    renderFiles();
+    if (files.length && !upBusy) showFolder(folder);
+  }
+  $("fileBtn").addEventListener("click", openFiles);
+  $("fileClose").addEventListener("click", closeSheets);
+  $("filePick").addEventListener("click", () => $("fileInput").click());
+  for (const [label, p] of FOLDER_CHIPS) {
+    const b = document.createElement("button");
+    b.type = "button"; b.textContent = label; b.dataset.p = p;
+    b.addEventListener("click", () => { if (!upBusy) showFolder(p); });
+    $("folderChips").appendChild(b);
+  }
+  $("folderUp").addEventListener("click", () => {
+    if (folder === "/ext" || upBusy) return;
+    showFolder(folder.slice(0, folder.lastIndexOf("/")) || "/ext");
+  });
+  $("fileInput").addEventListener("change", () => {
+    const picked = Array.from($("fileInput").files || []);
+    $("fileInput").value = "";
+    if (!picked.length) return;
+    files = files.filter(f => f.st !== "done");
+    let first = null;
+    for (const file of picked) {
+      if (file.size > 32 * 1048576) { toast("„" + file.name + "“ ist zu groß (höchstens 32 MB)", true); continue; }
+      const entry = {file, name: flipperName(file.name), st: ""};
+      const same = files.findIndex(f => f.name === entry.name); // dieselbe Datei noch einmal gewählt: ersetzen
+      if (same >= 0) files[same] = entry; else files.push(entry);
+      first = first || file;
+    }
+    $("fileMsg").textContent = "";
+    $("fileMsg").className = "formmsg";
+    const dir = first ? EXT_DIR[extOf(first.name)] || "/ext" : folder;
+    renderFiles();
+    if (files.length) showFolder(dir);
+  });
+
+  function onUpload(m) {
+    const u = upCur;
+    if (!u) return;
+    if (m.st === "ack") { u.acked = m.n; u.started = true; pumpUpload(); showProgress(); }
+    else if (m.st === "done") { upCur = null; u.resolve(!!m.v); }
+    else if (m.st === "cancel") { upCur = null; u.reject({cancel: true}); }
+    else if (m.st === "error") { upCur = null; u.reject({status: m.s}); }
+  }
+  function uploadFailed(status) {
+    if (upCur) { const u = upCur; upCur = null; u.reject({status}); }
+  }
+  async function pumpUpload() {
+    const u = upCur;
+    if (!u || !u.started || u.pumping) return;
+    u.pumping = true;
+    try {
+      while (upCur === u && u.sent < u.size && u.sent - u.acked < UP_WINDOW * UP_CHUNK && ws && wsOpen) {
+        const end = Math.min(u.sent + UP_CHUNK, u.size);
+        ws.send(u.buf.subarray(u.sent, end));
+        u.sent = end;
+      }
+      if (upCur === u && u.sent >= u.size) showProgress();
+    } catch (e) { uploadFailed(65533); }
+    u.pumping = false;
+  }
+  function showProgress() {
+    const u = upCur;
+    if (!u) return;
+    const total = u.batchSize || 1, done = u.batchDone + u.acked;
+    $("fileBar").style.width = Math.min(100, 100 * done / total).toFixed(1) + "%";
+    const secs = (Date.now() - u.t0) / 1000;
+    const rate = secs > 0.5 ? " · " + fmtSize(Math.round(u.acked / secs)) + "/s" : "";
+    $("fileMsg").className = "formmsg";
+    $("fileMsg").textContent = (u.try > 1 ? "Prüfsumme stimmte nicht – Versuch " + u.try + " von " + UP_TRIES + ": " : "") +
+      "„" + u.name + "“ – " + (u.sent >= u.size ? "alles gesendet, der Flipper prüft die Datei …" : fmtSize(u.acked) + " von " + fmtSize(u.size) + rate);
+  }
+  function uploadOne(f, path, batch, attempt) {
+    return new Promise((resolve, reject) => {
+      upCur = {file: f.file, buf: f.buf, name: f.name, size: f.file.size, sent: 0, acked: 0, started: false, t0: Date.now(), resolve, reject,
+        batchSize: batch.size, batchDone: batch.done, try: attempt};
+      if (!send("W" + f.file.size + ":" + f.md5 + ":" + path)) uploadFailed(65535);
+      showProgress();
+    });
+  }
+
+  async function sendFiles() {
+    if (upBusy) { send("w"); $("fileMsg").textContent = "Breche ab …"; return; }
+    if (!wsOpen || link !== 2) return toast("Flipper ist nicht verbunden", true);
+    const todo = files.filter(f => f.st !== "done");
+    if (!todo.length) return;
+    const names = new Set(folderItems.filter(i => !i[2]).map(i => i[0]));
+    const seen = new Set();
+    for (const f of todo) {
+      if (seen.has(f.name)) return toast("Zwei Dateien heißen „" + f.name + "“ – bitte eine umbenennen.", true);
+      seen.add(f.name);
+      if ((folder + "/" + f.name).length > 154) return toast("Pfad zu lang: „" + f.name + "“ – Namen kürzen.", true);
+    }
+    const replace = todo.filter(f => names.has(f.name));
+    if (replace.length && !confirm(replace.length === 1 ? "„" + replace[0].name + "“ gibt es dort schon. Ersetzen?" :
+      replace.length + " Dateien gibt es dort schon. Ersetzen?")) return;
+    upBusy = true;
+    const batch = {size: todo.reduce((a, f) => a + f.file.size, 0), done: 0};
+    $("fileProg").hidden = false; $("fileBar").style.width = "0%";
+    renderFiles(); $("folderUp").disabled = true;
+    let ok = 0, failed = 0, verified = 0, cancelled = false;
+    for (const f of todo) {
+      f.st = "sending"; renderFiles();
+      try {
+        if (!f.md5) {
+          $("fileMsg").className = "formmsg"; $("fileMsg").textContent = "„" + f.name + "“ – berechne Prüfsumme …";
+          f.buf = new Uint8Array(await f.file.arrayBuffer());
+          await new Promise(r => setTimeout(r, 0)); // Anzeige aktualisieren lassen
+          f.md5 = md5(f.buf);
+        }
+        for (let attempt = 1; ; attempt++) {
+          try {
+            f.verified = await uploadOne(f, folder + "/" + f.name, batch, attempt);
+            break;
+          } catch (e) {
+            // kaputt angekommen: Das Modul hat die Datei schon gelöscht -> noch einmal senden
+            if (e && e.status === 65532 && attempt < UP_TRIES) continue;
+            throw e;
+          }
+        }
+        f.st = "done"; ok++;
+        if (f.verified) verified++;
+      } catch (e) {
+        if (e && e.cancel) { f.st = ""; cancelled = true; renderFiles(); break; }
+        f.st = "error"; f.err = UP_ERR[e && e.status] || "Fehler " + (e && e.status);
+        failed++;
+        if (e && (e.status === 65535 || e.status === 4)) { renderFiles(); break; }
+      }
+      batch.done += f.file.size;
+      renderFiles();
+    }
+    upBusy = false;
+    $("fileProg").hidden = true;
+    const m = $("fileMsg");
+    if (cancelled) { m.className = "formmsg"; m.textContent = "Abgebrochen – nichts gespeichert, vorhandene Dateien sind unverändert."; }
+    else if (failed) { m.className = "formmsg err"; m.textContent = (ok ? ok + " gesendet, " : "") + failed + (failed === 1 ? " Datei" : " Dateien") + " fehlgeschlagen."; }
+    else {
+      m.className = "formmsg ok";
+      m.textContent = (ok === 1 ? "Gesendet" : ok + " Dateien gesendet") + (verified === ok ? " und geprüft" : "") + " nach " + disp(folder) + "." +
+        (verified < ok ? " Der Flipper konnte keine Prüfsumme liefern – " + (ok - verified === 1 ? "eine Datei ist" : (ok - verified) + " Dateien sind") + " ungeprüft." : "");
+    }
+    if (ok) {
+      for (const k in cardCache) delete cardCache[k]; // neue Karten in der Kartenliste zeigen
+      toast(ok === 1 ? "Datei auf dem Flipper gespeichert" : ok + " Dateien auf dem Flipper gespeichert");
+    }
+    renderFiles();
+    if (wsOpen) showFolder(folder);
+  }
+  $("fileSend").addEventListener("click", sendFiles);
+
+  /* ---------- Toast ---------- */
+  let toastTimer;
+  function toast(msg, err) {
+    const t = $("toast");
+    t.textContent = msg;
+    t.classList.toggle("err", !!err);
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove("show"), 2600);
+  }
+
+  /* ---------- Einstellungen ---------- */
+  const chan = $("fChan");
+  chan.add(new Option("Automatisch", 0));
+  for (let c = 1; c <= 13; c++) chan.add(new Option("Kanal " + c, c));
+  $("optHaptic").checked = prefs.haptic;
+  $("optRotate").checked = prefs.rotate;
+  $("optHaptic").addEventListener("change", e => { prefs.haptic = e.target.checked; savePrefs(); });
+  $("optRotate").addEventListener("change", e => { prefs.rotate = e.target.checked; savePrefs(); });
+  if (navigator.standalone || matchMedia("(display-mode: standalone)").matches)
+    $("a2hs").textContent = "Läuft bereits als App vom Home-Bildschirm.";
+  else if (REMOTE)
+    $("a2hs").textContent = "In Safari auf Teilen tippen und „Zum Home-Bildschirm“ wählen – am besten direkt nach dem Öffnen des Kopplungslinks, dann ist der Code in der App mit drin.";
+
+  /* Gespeicherte WLANs: Änderungen gelten mit „Speichern & neu starten“.
+     Passwörter verlassen das Modul nie – neu eingetippte gehen nur beim Speichern mit. */
+  let nets = [], netPref = "", netConnected = "", staRssi = 0, scanRssi = {}, myVia = "sta", devState = null;
+  const utf8len = (t) => new TextEncoder().encode(t).length;
+  function netNames() {
+    const names = nets.map(n => n.ssid), typed = $("fStaSsid").value.trim();
+    if (typed && !names.includes(typed)) names.push(typed);
+    return names;
+  }
+  function renderNets() {
+    const list = $("netList");
+    list.innerHTML = "";
+    nets.forEach((n, i) => {
+      let info;
+      if (n.ssid === netConnected) info = '<span class="on">verbunden</span>' + (staRssi ? " · " + staRssi + " dBm" : "");
+      else if (n.isNew) info = '<span class="new">neu – gilt nach dem Speichern</span>';
+      else info = n.rssi ? n.rssi + " dBm" : "kein Signal bekannt";
+      if (nets.length > 1 && n.ssid === netPref) info += " · bevorzugt";
+      if (!n.pass && !n.password) info += " · offen";
+      const row = document.createElement("div");
+      row.className = "netrow";
+      row.innerHTML = '<div class="netinfo"><b>' + esc(n.ssid) + "</b><small>" + info + '</small></div><button class="netdel" type="button" aria-label="' +
+        esc(n.ssid) + ' entfernen">×</button>';
+      row.querySelector(".netdel").addEventListener("click", () => { nets.splice(i, 1); renderNets(); updateSleepNote(); });
+      list.appendChild(row);
+    });
+    const sel = $("fNetPref");
+    sel.innerHTML = "";
+    sel.add(new Option("Automatisch – stärkstes Signal", ""));
+    for (const n of nets) sel.add(new Option("Bevorzugt: " + n.ssid, n.ssid));
+    if (!nets.some(n => n.ssid === netPref)) netPref = "";
+    sel.value = netPref;
+    $("netPrefField").hidden = nets.length < 2;
+  }
+  $("fNetPref").addEventListener("change", e => { netPref = e.target.value; renderNets(); updateSleepNote(); });
+  function addNet(fromSave) {
+    const ssid = $("fStaSsid").value.trim(), pw = $("fStaPass").value;
+    if (!ssid) { if (!fromSave) msg("Bitte einen WLAN-Namen eingeben oder „Suchen“ tippen.", "err"); return !!fromSave; }
+    if (utf8len(ssid) > 32) { msg("WLAN-Name: höchstens 32 Zeichen.", "err"); return false; }
+    if (pw && (pw.length < 8 || pw.length > 63)) { msg("Das WLAN-Passwort braucht 8 bis 63 Zeichen.", "err"); return false; }
+    const old = nets.find(n => n.ssid === ssid);
+    if (old) {
+      if (pw) { old.password = pw; old.pass = true; toast("Neues Passwort für „" + ssid + "“ – gilt nach dem Speichern"); }
+    } else {
+      if (nets.length >= 8) { msg("Höchstens 8 WLANs – erst eins entfernen.", "err"); return false; }
+      nets.push({ssid, pass: !!pw, password: pw || undefined, rssi: scanRssi[ssid] || 0, isNew: true});
+    }
+    $("fStaSsid").value = ""; $("fStaPass").value = ""; $("scanList").hidden = true;
+    $("fStaOn").checked = true;
+    if (!fromSave) msg("");
+    renderNets(); updateSleepNote();
+    return true;
+  }
+  $("addNetBtn").addEventListener("click", () => addNet(false));
+  $("fStaPass").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); addNet(false); } });
+
+  /* Wer darf steuern? Geräte mit Rolle und Restzeit, offene Anfragen, Rollen */
+  let roles = [], editRole = null, devLoadedAt = 0, leftEls = [];
+  async function loadDevices() {
+    try {
+      const r = await fetch("/api/devices", {cache: "no-store"});
+      devState = await r.json();
+    } catch (e) { devState = null; }
+    devLoadedAt = Date.now();
+    renderDevices();
+  }
+  function roleSelect(sel, label) {
+    return '<select class="rolesel" aria-label="' + esc(label) + '">' +
+      roles.map(r => '<option value="' + r.id + '"' + (r.id === sel ? " selected" : "") + ">" + esc(r.n) + "</option>").join("") + "</select>";
+  }
+  function devLeftText(e) {
+    if (e.left === -1 || e.left == null) return "";
+    if (e.left === -2) return " · Restzeit unbekannt";
+    const l = Math.max(0, e.left - Math.floor((Date.now() - devLoadedAt) / 1000));
+    return " · " + (l <= 300 ? '<span class="warn">noch ' + fmtLeft(l) + "</span>" : "noch " + fmtLeft(l));
+  }
+  function renderDevices() {
+    const admin = may(P.admin), on = admin ? $("fLock").checked : me.lock;
+    const d = devState && devState.list ? devState : {list: [], pending: [], roles: [], lock: false};
+    $("devBox").hidden = !on;
+    roles = d.roles || [];
+    const list = $("devList");
+    list.innerHTML = "";
+    leftEls = [];
+    for (const p of d.pending || []) {
+      const row = document.createElement("div");
+      row.className = "netrow";
+      row.innerHTML = '<div class="netinfo"><b>' + esc(p.n) + '</b><small class="new">möchte steuern</small></div>' +
+        (admin && roles.length ? roleSelect(d.def, "Rolle für " + p.n) : "") +
+        '<button class="mini" type="button">Nein</button><button class="mini ok" type="button">Erlauben</button>';
+      const sel = row.querySelector("select"), [no, yes] = row.querySelectorAll("button");
+      no.addEventListener("click", () => decide(p.p, false));
+      yes.addEventListener("click", () => decide(p.p, true, sel ? Number(sel.value) : null));
+      list.appendChild(row);
+    }
+    for (const e of d.list || []) {
+      const row = document.createElement("div");
+      row.className = "netrow";
+      row.innerHTML = '<div class="netinfo"><b>' + esc(e.n) + "</b><small>" + (e.me ? '<span class="on">dieses Gerät</span>' : "freigegeben") +
+        devLeftText(e) + "</small></div>" + (roles.length ? roleSelect(e.r, "Rolle von " + e.n) : "") +
+        (e.left >= 0 ? '<button class="mini renew" type="button" aria-label="Zeit von ' + esc(e.n) + ' neu starten" title="Zeit neu starten">↻</button>' : "") +
+        '<button class="netdel" type="button" aria-label="' + esc(e.n) + ' entfernen">×</button>';
+      const sel = row.querySelector("select");
+      if (sel) sel.addEventListener("change", () => setRole(e, Number(sel.value), sel));
+      const rn = row.querySelector(".renew");
+      if (rn) rn.addEventListener("click", () => renewDevice(e));
+      row.querySelector(".netdel").addEventListener("click", () => removeDevice(e));
+      if (e.left >= 0) leftEls.push([row.querySelector("small"), e]);
+      list.appendChild(row);
+    }
+    $("roleBox").hidden = !(admin && on);
+    if (admin) { renderRoles(d); fillRemoteDevices(); }
+    let t;
+    if (!admin) t = "Du darfst neue Geräte zulassen. Sie bekommen die Rolle „" + (d.defn || "Gast") + "“ – ein Admin kann das später ändern." +
+      ((d.pending || []).length ? "" : " Gerade fragt kein Gerät an.");
+    else if (on && !d.lock) t = myVia === "ap"
+      ? "Wird mit „Speichern & neu starten“ aktiv. Du bist gerade im WLAN des Moduls: Öffne danach die Fernbedienung im Heim-WLAN, tippe „Freigabe anfragen“ und drück kurz BOOT am Modul – das erste Gerät wird so Admin."
+      : "Wird mit „Speichern & neu starten“ aktiv – dieses Gerät wird dabei automatisch freigegeben, als Admin.";
+    else t = (d.list && d.list.length ? "" : "Noch kein Gerät freigegeben. ") +
+      "Neue Geräte fragen beim Öffnen der Fernbedienung um Freigabe. Erlauben kannst du hier (mit Rolle), auf einem Gerät, dessen Rolle neue Geräte zulassen darf, oder mit einem kurzen Druck auf BOOT am Modul. ↻ startet die Zeit eines Geräts neu. Safari und die App vom Home-Bildschirm zählen als zwei Geräte.";
+    $("devNote").textContent = t;
+  }
+  // Restzeiten in der Liste mitlaufen lassen (ohne die Liste neu aufzubauen – ein offenes Auswahlmenü bliebe sonst nicht offen)
+  setInterval(() => {
+    if (!$("sheet").classList.contains("open")) return;
+    for (const [el, e] of leftEls) el.innerHTML = (e.me ? '<span class="on">dieses Gerät</span>' : "freigegeben") + devLeftText(e);
+  }, 15000);
+  $("fLock").addEventListener("change", renderDevices);
+  function lastAdmin(e) { return e.r === 0 && devState && devState.list.filter(x => x.r === 0).length <= 1; }
+  const LAST_ADMIN = "ist der letzte Admin im Heim-WLAN. Danach kann dort niemand mehr Einstellungen, Geräte und Rollen verwalten – nur noch über das WLAN des Moduls oder mit der BOOT-Taste. ";
+  async function setRole(e, rid, sel) {
+    if (e.r === 0 && rid !== 0) {
+      const q = lastAdmin(e) ? "„" + e.n + "“ " + LAST_ADMIN + "Trotzdem ändern?"
+        : e.me ? "Dieses Gerät ist dann kein Admin mehr und kann Einstellungen, Geräte und Rollen nicht mehr verwalten. Trotzdem ändern?" : "";
+      if (q && !confirm(q)) { sel.value = e.r; return; }
+    }
+    try {
+      await postJson("/api/devices", {set: e.i, role: rid});
+      const r = roles.find(x => x.id === rid);
+      toast("„" + e.n + "“ ist jetzt " + (r ? r.n : "–") + (r && r.ttl ? " – Zeit läuft ab jetzt" : ""));
+    } catch (err) { toast(String(err.message || err), true); sel.value = e.r; }
+    loadDevices();
+  }
+  async function renewDevice(e) {
+    try { await postJson("/api/devices", {renew: e.i}); toast("Zeit für „" + e.n + "“ neu gestartet"); }
+    catch (err) { toast(String(err.message || err), true); }
+    loadDevices();
+  }
+  async function removeDevice(e) {
+    const q = (e.me ? "Dieses Gerät entfernen? Danach kann es im Heim-WLAN nicht mehr steuern." :
+      "„" + e.n + "“ entfernen? Es kann danach im Heim-WLAN nicht mehr steuern.") + (lastAdmin(e) ? "\n\nAchtung: Es " + LAST_ADMIN : "");
+    if (!confirm(q)) return;
+    try { await postJson("/api/devices", {remove: e.i}); }
+    catch (err) { toast(String(err.message || err), true); }
+    loadDevices();
+  }
+
+  /* Rollen: anlegen, bearbeiten, löschen, Standardrolle */
+  $("rolePerms").innerHTML = PERMS.map(p => '<div class="toggle"><div>' + p[1] + "<small>" + p[2] + '</small></div><input type="checkbox" data-perm="' + p[0] + '"></div>').join("");
+  const devCount = (n) => n === 1 ? "1 Gerät" : (n || 0) + " Geräte";
+  function renderRoles(d) {
+    const list = $("roleList");
+    list.innerHTML = "";
+    for (const r of roles) {
+      const row = document.createElement("div");
+      row.className = "netrow";
+      const fixed = r.id === 0;
+      row.innerHTML = '<div class="netinfo"><b>' + esc(r.n) + (r.id === d.def ? '<span class="tag">Standard</span>' : "") + "</b><small>" +
+        esc(fixed ? "darf alles" : permText(r.pm)) + " · " + (r.ttl ? "nach " + fmtMin(r.ttl) + " raus" : "unbegrenzt") + " · " + devCount(r.use) + "</small></div>" +
+        (fixed ? "" : '<button class="mini" type="button">Bearbeiten</button>');
+      if (!fixed) row.querySelector("button").addEventListener("click", () => openRole(r));
+      list.appendChild(row);
+    }
+    const sel = $("fDefRole");
+    sel.innerHTML = "";
+    for (const r of roles) if (r.id !== 0) sel.add(new Option(r.n, r.id));
+    sel.value = d.def;
+    $("roleAdd").hidden = roles.length >= 8 || !$("roleEdit").hidden;
+    if (editRole && !roles.some(r => r.id === editRole.id)) closeRoleEdit();
+  }
+  function roleMsg(t, cls) { const m = $("roleMsg"); m.textContent = t; m.className = "formmsg " + (cls || ""); }
+  function openRole(r) {
+    editRole = r || null; // null = neue Rolle
+    $("fRoleName").value = r ? r.n : "";
+    $("fRoleName").disabled = !!r && r.id === 1;
+    $("roleEdit").querySelectorAll("[data-perm]").forEach(cb => { cb.checked = r ? !!(r.pm & Number(cb.dataset.perm)) : Number(cb.dataset.perm) === P.keys; });
+    const ttl = r ? r.ttl : 0;
+    $("fRoleTtlOn").checked = ttl > 0;
+    if (ttl > 0 && ttl % 1440 === 0) { $("fRoleTtl").value = ttl / 1440; $("fRoleTtlUnit").value = "1440"; }
+    else if (ttl > 0 && ttl % 60 === 0) { $("fRoleTtl").value = ttl / 60; $("fRoleTtlUnit").value = "60"; }
+    else if (ttl > 0) { $("fRoleTtl").value = ttl; $("fRoleTtlUnit").value = "1"; }
+    else { $("fRoleTtl").value = 2; $("fRoleTtlUnit").value = "60"; }
+    $("roleTtlField").hidden = !ttl;
+    $("roleDel").hidden = !r || r.id <= 1;
+    $("roleSave").textContent = r ? "Rolle speichern" : "Rolle anlegen";
+    roleMsg("");
+    $("roleEdit").hidden = false;
+    $("roleAdd").hidden = true;
+    $("roleEdit").scrollIntoView({block: "nearest", behavior: "smooth"});
+  }
+  function closeRoleEdit() { $("roleEdit").hidden = true; editRole = null; $("roleAdd").hidden = roles.length >= 8; }
+  $("roleAdd").addEventListener("click", () => openRole(null));
+  $("roleCancel").addEventListener("click", closeRoleEdit);
+  $("fRoleTtlOn").addEventListener("change", e => { $("roleTtlField").hidden = !e.target.checked; });
+  $("roleSave").addEventListener("click", async () => {
+    const name = $("fRoleName").value.trim(), isNew = !editRole;
+    let pm = 0, ttl = 0;
+    $("roleEdit").querySelectorAll("[data-perm]").forEach(cb => { if (cb.checked) pm |= Number(cb.dataset.perm); });
+    if ($("fRoleTtlOn").checked) {
+      ttl = Math.round(Number($("fRoleTtl").value) * Number($("fRoleTtlUnit").value));
+      if (!(ttl >= 1 && ttl <= 527040)) return roleMsg("Zeitgrenze: 1 Minute bis 366 Tage.", "err");
+    }
+    if (!(editRole && editRole.id === 1)) {
+      if (!name) return roleMsg("Bitte einen Namen für die Rolle eingeben.", "err");
+      if (utf8len(name) > 20) return roleMsg("Name: höchstens 20 Zeichen.", "err");
+    }
+    const body = {put: {n: name, pm, ttl}};
+    if (!isNew) body.put.id = editRole.id;
+    $("roleSave").disabled = true;
+    try {
+      await postJson("/api/roles", body);
+      closeRoleEdit();
+      toast(isNew ? "Rolle „" + name + "“ angelegt" : "Rolle gespeichert – gilt sofort");
+      loadDevices();
+    } catch (e) { roleMsg(String(e.message || e), "err"); }
+    $("roleSave").disabled = false;
+  });
+  $("roleDel").addEventListener("click", async () => {
+    const r = editRole;
+    if (!r || !confirm("Rolle „" + r.n + "“ löschen?" + (r.use ? " " + (r.use === 1 ? "1 Gerät bekommt" : r.use + " Geräte bekommen") + " dann die Rolle „Gast“." : ""))) return;
+    try { await postJson("/api/roles", {del: r.id}); closeRoleEdit(); toast("Rolle „" + r.n + "“ gelöscht"); loadDevices(); }
+    catch (e) { roleMsg(String(e.message || e), "err"); }
+  });
+  $("fDefRole").addEventListener("change", async e => {
+    try { await postJson("/api/roles", {def: Number(e.target.value)}); toast("Neue Geräte bekommen jetzt die Rolle „" + e.target.selectedOptions[0].text + "“"); }
+    catch (err) { toast(String(err.message || err), true); }
+    loadDevices();
+  });
+  /* Fernzugriff: Einstellungen (Admin), Zustand, Kopplungslink */
+  let rmtAvail = false, rmtInfo = {};
+  function updateRemoteUi() {
+    const on = $("fRemote").checked, own = $("fBroker").value === "0";
+    $("rmtCfg").hidden = !on; $("brokerOwn").hidden = !own;
+    const j = rmtInfo || {}, st = $("rmtState");
+    st.className = "netstate";
+    if (!may(P.admin)) st.textContent = "Eingeschaltet. Erzeuge hier den Kopplungslink für dieses Gerät und öffne ihn – dann steuerst du von unterwegs.";
+    else if (!j.remote_on) st.textContent = on ? "Wird mit „Speichern & neu starten“ eingeschaltet." : "Aus.";
+    else if (j.remote_state === "online") { st.className = "netstate ok"; st.textContent = "Bereit – das Modul ist übers Internet erreichbar." + (j.remote_sess ? " Gerade " + (j.remote_sess === 1 ? "1 Gerät" : j.remote_sess + " Geräte") + " verbunden." : ""); }
+    else if (j.remote_state === "connecting") st.textContent = "Verbindet mit dem Vermittler … (Klappt es länger nicht: anderen Vermittler wählen – manche WLANs sperren das.)";
+    else if (j.remote_state === "nonet") st.textContent = "Wartet auf ein WLAN mit Internet.";
+    else st.textContent = "Startet nach dem Speichern.";
+    $("rmtLinkBtn").hidden = !j.remote_on && may(P.admin);
+    $("rmtDevField").hidden = !may(P.admin) || !j.remote_on;
+  }
+  ["fRemote", "fBroker"].forEach(id => $(id).addEventListener("change", updateRemoteUi));
+  // Offene WLANs und Fernzugriff brauchen die Geräte-Sperre: gleich mit einschalten
+  ["fOpenAuto", "fRemote"].forEach(id => $(id).addEventListener("change", e => {
+    if (e.target.checked && !$("fLock").checked) {
+      $("fLock").checked = true; renderDevices();
+      toast("„Im WLAN nur freigegebene Geräte“ ist jetzt mit an – sonst könnte jeder steuern");
+    }
+    if (id === "fOpenAuto") updateSleepNote();
+  }));
+  function fillRemoteDevices() {
+    const sel = $("fRmDev"), cur = sel.value;
+    sel.innerHTML = "";
+    sel.add(new Option("dieses Gerät", ""));
+    for (const e of (devState && devState.list) || []) {
+      if (e.me) continue;
+      const r = roles.find(x => x.id === e.r);
+      sel.add(new Option(e.n + (r && !(r.pm & P.remote) ? " (Rolle ohne Fernzugriff)" : ""), String(e.i)));
+    }
+    sel.value = [...sel.options].some(o => o.value === cur) ? cur : "";
+  }
+  let rmtLinkUrl = "";
+  $("rmtLinkBtn").addEventListener("click", async () => {
+    const dev = may(P.admin) ? $("fRmDev").value : "";
+    let j;
+    try {
+      const r = await fetch("/api/remote/link" + (dev ? "?dev=" + encodeURIComponent(dev) : ""), {cache: "no-store"});
+      j = await r.json();
+      if (!j.ok) throw new Error(j.error || "Fehler");
+    } catch (e) { return toast(String(e.message || e), true); }
+    const page = (j.page || "").replace(/#.*$/, "");
+    rmtLinkUrl = page ? page + "#fz=" + j.code : "";
+    $("rmtLink").textContent = rmtLinkUrl || j.code;
+    $("rmtOpen").hidden = !rmtLinkUrl;
+    $("rmtShare").hidden = !navigator.share;
+    $("rmtNote").textContent = (j.perm ? "" : "Achtung: Die Rolle von „" + j.name + "“ erlaubt keinen Fernzugriff – erst bei der Rolle einschalten. ") +
+      (rmtLinkUrl ? "Öffne den Link auf dem Handy, das unterwegs steuern soll, und füge die Seite dort zum Home-Bildschirm hinzu. "
+        : "Es ist noch keine Fernbedienungs-Seite eingetragen (Admin: oben unter „Fernzugriff übers Internet“). Bis dahin: Seite öffnen und diesen Code dort einfügen. ") +
+      "Der Link ist der Schlüssel für „" + j.name + "“ mit dessen Rolle – gib ihn nur an dieses Gerät. Wird das Gerät entfernt oder läuft seine Zeit ab, ist er wertlos.";
+    $("rmtLinkBox").hidden = false;
+    $("rmtLinkBox").scrollIntoView({block: "nearest", behavior: "smooth"});
+  });
+  $("rmtOpen").addEventListener("click", () => { if (rmtLinkUrl) window.open(rmtLinkUrl, "_blank"); });
+  $("rmtShare").addEventListener("click", () => { navigator.share({title: "Flipper Fernzugriff", url: rmtLinkUrl || undefined, text: rmtLinkUrl ? undefined : $("rmtLink").textContent}).catch(() => {}); });
+  $("rmtCopy").addEventListener("click", async () => {
+    const t = $("rmtLink").textContent;
+    try { await navigator.clipboard.writeText(t); }
+    catch (e) { // ohne https gibt es keine Zwischenablage-API: klassisch über ein Textfeld
+      const ta = document.createElement("textarea"); ta.value = t; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.focus(); ta.select(); ta.setSelectionRange(0, t.length);
+      try { document.execCommand("copy"); } catch (x) {}
+      ta.remove();
+    }
+    toast("Kopiert");
+  });
+
+  const REASONS = {2: "Anmeldung abgelaufen", 15: "falsches Passwort?", 201: "WLAN nicht gefunden", 202: "Anmeldung abgelehnt", 204: "falsches Passwort?", 205: "Verbindung fehlgeschlagen", 210: "WLAN nicht gefunden", 211: "falsches Passwort?"};
+  function showStaState(j) {
+    const el = $("staState");
+    el.className = "netstate";
+    if (!j.sta_enabled) { el.textContent = "Aus. Das Modul ist nur über sein eigenes WLAN erreichbar."; return; }
+    if (j.sta_connected) {
+      el.className = "netstate ok";
+      el.innerHTML = "Verbunden mit <b>" + esc(j.sta_ssid) + "</b>" + (j.sta_open ? " (offenes WLAN)" : "") + " · Signal " + j.sta_rssi + " dBm" +
+        (j.inet === 1 ? " · Internet ✓" : j.inet === 2 ? " · <span style=\"color:var(--warn)\">kein Internet</span>" : "") +
+        "<br>Adresse: <b>http://" + esc(j.hostname) + ".local</b> oder <b>http://" + esc(j.sta_ip) + "</b>";
+      return;
+    }
+    if (!nets.length) { el.textContent = j.open_auto ? "Kein WLAN gespeichert – sucht offene WLANs mit Internet…" : "Noch kein WLAN gespeichert."; return; }
+    el.textContent = j.sta_reason ? "Nicht verbunden mit „" + j.sta_ssid + "“ – " + (REASONS[j.sta_reason] || "Fehler " + j.sta_reason)
+      : "Nicht verbunden – " + (nets.length > 1 ? "sucht das beste deiner WLANs…" : "verbinde mit „" + nets[0].ssid + "“…");
+  }
+
+  $("fHost").addEventListener("input", e => { $("hostUrl").textContent = "http://" + (e.target.value.trim().toLowerCase() || "flipper") + ".local"; });
+
+  $("scanBtn").addEventListener("click", async () => {
+    const btn = $("scanBtn"), list = $("scanList");
+    btn.disabled = true; btn.textContent = "Suche…";
+    try {
+      const r = await fetch("/api/scan", {cache: "no-store"});
+      const found = await r.json();
+      if (!Array.isArray(found)) throw new Error(found.error || "Fehler");
+      list.innerHTML = "";
+      if (!found.length) list.innerHTML = '<div class="note" style="padding:10px">Keine WLANs gefunden.</div>';
+      scanRssi = {};
+      for (const n of found) scanRssi[n.ssid] = n.rssi;
+      for (const n of nets) n.rssi = scanRssi[n.ssid] || 0;
+      renderNets();
+      for (const n of found) {
+        const b = document.createElement("button");
+        const saved = nets.some(x => x.ssid === n.ssid);
+        b.type = "button";
+        b.innerHTML = "<span>" + esc(n.ssid) + (n.open ? " (offen)" : "") + (saved ? " · gespeichert" : "") + "</span><small>" + n.rssi + " dBm</small>";
+        b.addEventListener("click", () => {
+          $("fStaSsid").value = n.ssid; list.hidden = true;
+          if (n.open) addNet(false); else $("fStaPass").focus();
+          updateSleepNote();
+        });
+        list.appendChild(b);
+      }
+      list.hidden = false;
+    } catch (e) { msg("WLAN-Suche fehlgeschlagen: " + (e.message || e), "err"); }
+    btn.disabled = false; btn.textContent = "Suchen";
+  });
+
+  function wakeEverySec() { return Math.round(Number($("fWakeEvery").value) * Number($("fWakeUnit").value)); }
+  function fmtDur(s) {
+    if (s < 120) return s + " Sekunden";
+    if (s < 7200) return (Math.round(s / 6) / 10).toString().replace(".", ",") + " Minuten";
+    return (Math.round(s / 360) / 10).toString().replace(".", ",") + " Stunden";
+  }
+  function wakeCheck() {
+    const e = wakeEverySec(), w = Number($("fWakeWin").value);
+    if (!(e >= 10 && e <= 86400)) return "Aufwachen alle: 10 Sekunden bis 24 Stunden.";
+    if (!(w >= 10 && w <= 300)) return "Wach für: 10 bis 300 Sekunden.";
+    if (w >= e) return "Die Wachzeit muss kürzer sein als das Aufwach-Intervall.";
+    return "";
+  }
+  function standbyCheck() {
+    if (!$("fStaOn").checked || (!netNames().length && !$("fOpenAuto").checked))
+      return "Für die Bereitschaft muss das Modul mit einem WLAN verbunden sein: Trag oben unter „Heim-WLAN oder iPhone-Hotspot“ dein WLAN oder den Hotspot deines iPhones ein.";
+    return "";
+  }
+  function updateSleepNote() {
+    const m = Number($("fSleepMode").value), a = $("fSleepAfter").value;
+    $("fSleepAfter").disabled = m === 0;
+    $("sleepAfterField").hidden = m === 3;
+    $("sleepAfterField").querySelector("label").textContent = m === 4 ? "Ausschalten nach" : "Schlafen nach";
+    $("wakeFields").hidden = m !== 1;
+    let t;
+    if (m === 0) t = "Das WLAN des Moduls bleibt immer an.";
+    else if (m === 4) {
+      t = "Nach " + a + " Minuten ohne Nutzung ist das Modul aus: kein WLAN, nur noch rund 1 mA. Es wacht auf, sobald sich dein iPhone per Bluetooth mit dem Flipper verbindet – also einfach die Flipper-App öffnen. Ein paar Sekunden später ist das WLAN „" +
+        ($("fSsid").value.trim() || "Flipper-Remote") + "“ da. Dafür liest das Modul die Meldungen mit, die der Flipper ab Werk über Pin 13 ausgibt (am Flipper: Einstellungen → System → Log Level „Default“ oder „Info“, Log Device „USART“, Log Baud Rate 230400). Bleibt die Flipper-App verbunden, weckt sie nicht erneut – dann die App einmal ganz schließen und wieder öffnen. Notfalls weckt auch die BOOT-Taste am Board; nach RESET ist es sofort an.";
+    }
+    else if (m === 3) {
+      const host = ($("fHost").value.trim().toLowerCase() || "flipper"), names = netNames();
+      const net = netPref && names.includes(netPref) ? netPref : names.join("“ oder „");
+      t = standbyCheck() || "Nutzt 30 Sekunden lang niemand die App, schaltet das Modul sein eigenes WLAN ab und bleibt nur mit „" + net +
+        "“ verbunden. Funk und Chip schlafen dabei zwischen den Signalen des Routers bzw. Hotspots – das spart viel Strom, trotzdem ist das Modul jederzeit sofort da: einfach http://" +
+        host + ".local öffnen (iPhone im selben WLAN bzw. Hotspot an). Ist „" + net + "“ nicht erreichbar, schaltet sich nach 15 Sekunden das eigene WLAN wieder ein. LED: kurz weiß alle 8 Sekunden.";
+    }
+    else if (m === 1) {
+      const e = wakeEverySec(), w = Number($("fWakeWin").value), err = wakeCheck();
+      t = err ? err : "Nach " + a + " Minuten ohne Nutzung schläft das Modul, wacht alle " + fmtDur(e) + " auf und ist dann " + w +
+        " Sekunden lang erreichbar – im Schnitt etwa " + Math.max(1, Math.round(100 * w / e)) + " % der Zeit an. Verbindet sich in der Zeit ein Handy, bleibt es wach. Im ungünstigsten Fall wartest du also bis zu " +
+        fmtDur(Math.max(e - w, 5)) + ", bis das WLAN auftaucht. Eine laufende Karten-Emulation verhindert das Schlafen.";
+    } else t = "Nach " + a + " Minuten ohne Nutzung schläft das Modul tief und verbraucht fast nichts. Aufwecken nur mit der RESET-Taste am Board (beim Devboard auch BOOT) – aus der Ferne geht es dann nicht mehr.";
+    $("sleepNote").textContent = t;
+    $("sleepNote").style.color = (m === 1 && wakeCheck()) || (m === 3 && standbyCheck()) ? "var(--bad)" : "";
+  }
+  ["fSleepMode", "fSleepAfter", "fWakeUnit", "fStaOn"].forEach(id => $(id).addEventListener("change", updateSleepNote));
+  ["fWakeEvery", "fWakeWin", "fStaSsid", "fHost"].forEach(id => $(id).addEventListener("input", updateSleepNote));
+
+  let lowBatBoot = "BOOT oder RESET";
+  function updateLowBatNote() {
+    const on = $("fLowBat").checked, lv = $("fLowBatLevel").value;
+    $("lowBatField").hidden = !on;
+    $("lowBatNote").hidden = !on;
+    if (!on) return;
+    $("lowBatNote").textContent = "Fällt der Akku des Flippers auf " + lv + " % oder weniger und er hängt nicht am Ladekabel, schaltet sich das Modul aus. " +
+      "Ist die Fernbedienung gerade offen, siehst du vorher 30 Sekunden lang einen Hinweis und kannst es noch anlassen. " +
+      "Im Aus braucht das Modul fast keinen Strom und reagiert nicht auf Bluetooth. Sobald der Flipper lädt, geht es von selbst wieder an – es sieht dafür alle 15 Minuten kurz nach. " +
+      "Sofort an: " + lowBatBoot + " am Board drücken; dann bleibt es an, solange du es nutzt, und geht 2 Minuten danach wieder aus.";
+  }
+  ["fLowBat", "fLowBatLevel"].forEach(id => $(id).addEventListener("change", updateLowBatNote));
+
+  function msg(text, cls) { const m = $("formMsg"); m.textContent = text; m.className = "formmsg " + (cls || ""); }
+
+  function openSheetEl(id) {
+    document.querySelectorAll(".sheet.open").forEach(s => s.classList.remove("open"));
+    $(id).classList.add("open");
+    document.body.classList.add("sheet-open");
+  }
+  function closeSheets() {
+    document.querySelectorAll(".sheet.open").forEach(s => s.classList.remove("open"));
+    document.body.classList.remove("sheet-open");
+    document.activeElement && document.activeElement.blur();
+  }
+
+  async function openSheet() {
+    releaseAll();
+    openSheetEl("sheet");
+    msg("");
+    applyPerms();
+    if (!may(P.admin)) { // ohne Admin: eigener Zugang, ggf. offene Anfragen, eigener Kopplungslink
+      $("rmtLinkBox").hidden = true; updateRemoteUi();
+      devState = null;
+      if (may(P.approve) && me.lock) { renderDevices(); loadDevices(); }
+      return;
+    }
+    closeRoleEdit();
+    $("saveBtn").disabled = true;
+    try {
+      const r = await fetch("/api/settings", {cache: "no-store"});
+      const j = await r.json();
+      $("fSsid").value = j.ssid; $("fPass").value = "";
+      chan.value = j.channel; $("fBaud").value = j.baud;
+      chan.options[0].text = j.channel === 0 && j.wifi_channel ? "Auto: Kanal " + j.wifi_channel : "Automatisch";
+      $("fLongRange").checked = !!j.long_range;
+      $("fTx").value = j.tx; $("fRx").value = j.rx;
+      $("fPwr").value = j.power || 80;
+      $("fLowPower").checked = !!j.low_power;
+      $("fSleepMode").value = j.sleep_mode || 0;
+      $("fSleepAfter").value = j.sleep_after || 15;
+      const every = j.wake_every || 60;
+      if (every >= 120 && every % 60 === 0) { $("fWakeEvery").value = every / 60; $("fWakeUnit").value = "60"; }
+      else { $("fWakeEvery").value = every; $("fWakeUnit").value = "1"; }
+      $("fWakeWin").value = j.wake_window || 25;
+      $("fLowBat").checked = !!j.lowbat_off;
+      $("fLowBatLevel").value = j.lowbat_level || 10;
+      lowBatBoot = j.chip === "esp32s2" ? "BOOT oder RESET" : "RESET";
+      $("fwSection").hidden = !j.other;
+      $("fStaOn").checked = !!j.sta_enabled;
+      nets = (j.nets || []).map(n => ({ssid: n.ssid, pass: !!n.pass, rssi: n.rssi || 0}));
+      netPref = j.net_pref || ""; netConnected = j.sta_connected ? j.sta_ssid : ""; staRssi = j.sta_rssi || 0;
+      $("fStaSsid").value = ""; $("fStaPass").value = ""; $("scanList").hidden = true;
+      renderNets();
+      $("fLock").checked = !!j.sta_lock; myVia = j.via || "sta";
+      $("fOpenAuto").checked = !!j.open_auto;
+      rmtInfo = j; rmtAvail = !!j.remote_avail;
+      $("fRemote").checked = !!j.remote_on;
+      $("fBroker").value = String(j.remote_broker == null ? 1 : j.remote_broker);
+      $("fRmMqtt").value = j.remote_mqtt || ""; $("fRmWss").value = j.remote_wss || ""; $("fRmPage").value = j.remote_page || "";
+      $("rmtLinkBox").hidden = true;
+      updateRemoteUi(); applyPerms();
+      devState = null; renderDevices(); loadDevices();
+      $("fHost").value = j.hostname || "flipper";
+      $("hostUrl").textContent = "http://" + (j.hostname || "flipper") + ".local";
+      updateSleepNote();
+      updateLowBatNote();
+      showStaState(j);
+      const s = lastStatus || {};
+      $("info").textContent =
+        "Modul     " + j.chip + " · " + j.xtal + " MHz · Firmware " + j.version + "\n" +
+        "Laufzeit  " + fmtTime(j.uptime) + " · " + Math.round(j.heap / 1024) + " KB frei\n" +
+        "Start     " + (BOOT_REASON[j.boot] || j.boot || "–") +
+        (j.woke === "bt" ? " · aus dem Aus geweckt per Bluetooth" + (j.wline ? "\n          „" + j.wline + "“" : "") :
+         j.woke === "button" ? " · aus dem Aus geweckt per BOOT-Taste" :
+         j.woke === "charged" ? " · wieder an, weil der Flipper lädt" : "") + "\n" +
+        "Flipper   " + (s.n || "–") + (s.fw ? " · " + s.fw : "") + "\n" +
+        "Verbind.  " + (s.rc || 0) + "× aufgebaut, " + (s.e || 0) + " Fehler" +
+        (s.br && link === 2 && s.br < j.baud ? "\nLeitung   " + s.br + " Baud – wegen Übertragungsfehlern von " + j.baud + " heruntergeschaltet" : "") +
+        (s.lg ? "\nZuletzt   " + s.lg : "");
+      $("saveBtn").disabled = false;
+    } catch (e) {
+      msg("Einstellungen nicht erreichbar – bist du mit dem Modul-WLAN verbunden?", "err");
+    }
+  }
+  const closeSheet = closeSheets;
+
+  $("settingsBtn").addEventListener("click", openSheet);
+  $("closeBtn").addEventListener("click", closeSheet);
+  $("sheetBg").addEventListener("click", closeSheet);
+
+  $("saveBtn").addEventListener("click", async () => {
+    const body = {
+      ssid: $("fSsid").value.trim(),
+      channel: Number(chan.value),
+      baud: Number($("fBaud").value),
+      tx: Number($("fTx").value),
+      rx: Number($("fRx").value),
+      power: Number($("fPwr").value),
+      long_range: $("fLongRange").checked,
+      low_power: $("fLowPower").checked,
+      sleep_mode: Number($("fSleepMode").value),
+      sleep_after: Number($("fSleepAfter").value),
+      wake_every: wakeEverySec(),
+      wake_window: Number($("fWakeWin").value),
+      lowbat_off: $("fLowBat").checked,
+      lowbat_level: Number($("fLowBatLevel").value),
+      sta_enabled: $("fStaOn").checked,
+      hostname: $("fHost").value.trim().toLowerCase(),
+    };
+    if ($("fStaSsid").value.trim() && !addNet(true)) return; // eingetipptes, noch nicht hinzugefügtes WLAN mitnehmen
+    body.sta_enabled = $("fStaOn").checked;
+    body.nets = nets.map(n => n.password ? {ssid: n.ssid, password: n.password} : {ssid: n.ssid});
+    body.net_pref = nets.length > 1 ? netPref : "";
+    body.sta_lock = $("fLock").checked;
+    body.device_name = guessName();
+    body.open_auto = $("fOpenAuto").checked;
+    if (rmtAvail) {
+      body.remote_on = $("fRemote").checked;
+      body.remote_broker = Number($("fBroker").value);
+      body.remote_mqtt = $("fRmMqtt").value.trim(); body.remote_wss = $("fRmWss").value.trim(); body.remote_page = $("fRmPage").value.trim();
+      if (body.remote_page && !/^https:\/\//.test(body.remote_page)) return msg("Adresse der Fernbedienungs-Seite: muss mit https:// beginnen.", "err");
+      if (body.remote_on && body.remote_broker === 0 && (!/^(mqtt|ws):\/\//.test(body.remote_mqtt) || !/^wss:\/\//.test(body.remote_wss)))
+        return msg("Eigener Vermittler: Adresse fürs Modul (mqtt://… oder ws://…) und fürs Handy (wss://…) eintragen.", "err");
+      if (body.remote_on && !body.sta_enabled) return msg("Für den Fernzugriff muss das Modul mit einem WLAN mit Internet verbunden sein (oben „Mit WLAN verbinden“).", "err");
+    }
+    if ((body.open_auto || body.remote_on) && !body.sta_lock) return msg("Offene WLANs und Fernzugriff gehen nur zusammen mit „Im WLAN nur freigegebene Geräte“.", "err");
+    if (body.sta_enabled && !body.nets.length && !body.open_auto) return msg("Bitte mindestens ein WLAN hinzufügen.", "err");
+    const wk = wakeCheck();
+    if (body.sleep_mode === 1 && wk) return msg(wk, "err");
+    if (body.sleep_mode !== 1 && wk) { delete body.wake_every; delete body.wake_window; }
+    if (body.sleep_mode === 3 && standbyCheck()) return msg(standbyCheck(), "err");
+    if (!/^[a-z0-9]([a-z0-9-]{0,22}[a-z0-9])?$/.test(body.hostname)) return msg("Name im Netzwerk: nur a–z, 0–9 und Bindestrich.", "err");
+    const pw = $("fPass").value;
+    if (!body.ssid) return msg("Bitte einen WLAN-Namen eingeben.", "err");
+    if (pw && (pw.length < 8 || pw.length > 63)) return msg("Das Passwort braucht 8 bis 63 Zeichen.", "err");
+    if (pw) body.password = pw;
+    $("saveBtn").disabled = true;
+    msg("Speichere…");
+    try {
+      const r = await fetch("/api/settings", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || "Fehler");
+      const netTxt = body.net_pref || (body.nets.length === 1 ? body.nets[0].ssid : "");
+      const withNet = netTxt ? "„" + netTxt + "“" : "dem besten deiner WLANs";
+      const paired = j.paired ? " Dieses Gerät ist freigegeben." : "";
+      msg((body.sleep_mode === 4
+        ? "Gespeichert. Das Modul startet neu und ist danach erst einmal an. Nach " + body.sleep_after + " Minuten ohne Nutzung geht es aus – zum Wecken die Flipper-App öffnen (Bluetooth-Verbindung zum Flipper)."
+        : body.sleep_mode === 3
+        ? "Gespeichert. Das Modul startet neu und verbindet sich mit " + withNet + ". Öffne die Fernbedienung ab jetzt über http://" + body.hostname + ".local – das WLAN „" + body.ssid + "“ ist in der Bereitschaft aus."
+        : body.sta_enabled
+        ? "Gespeichert. Das Modul startet neu und verbindet sich mit " + withNet + ". Danach erreichst du es im Heim-WLAN unter http://" + body.hostname + ".local – oder weiter über das WLAN „" + body.ssid + "“."
+        : "Gespeichert. Das Modul startet neu – verbinde dich danach wieder mit dem WLAN „" + body.ssid + "“.") + paired, "ok");
+    } catch (e) {
+      msg(String(e.message || e), "err");
+      $("saveBtn").disabled = false;
+    }
+  });
+
+  $("offBtn").addEventListener("click", async () => {
+    const emuOn = emu.st !== "idle";
+    if (!confirm("Modul jetzt ausschalten?\n\nDas WLAN geht aus" + (emuOn ? " und die laufende Karten-Emulation wird beendet" : "") +
+      ".\nWieder an: Flipper-App neu öffnen (neue Bluetooth-Verbindung) oder BOOT am Board drücken.")) return;
+    const btn = $("offBtn");
+    btn.disabled = true;
+    try {
+      const r = await fetch("/api/off", {method: "POST"});
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || "Fehler");
+    } catch (e) {
+      btn.disabled = false;
+      return msg("Ausschalten fehlgeschlagen: " + (e.message || e), "err");
+    }
+    moduleOff = true;
+    btn.disabled = false;
+    closeSheets();
+    releaseAll();
+    toast("Modul wird ausgeschaltet …");
+    updateUi();
+  });
+
+  $("switchBtn").addEventListener("click", async () => {
+    if (!confirm("Zu Marauder wechseln? Das Board startet neu, die Fernbedienung ist dann aus. Zurück geht es am Flipper mit ESP Flasher → „Switch to Firmware A“.")) return;
+    try {
+      const r = await fetch("/api/switch", {method: "POST"});
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || "Fehler");
+      msg("Board startet jetzt Marauder. Am Flipper die Marauder-App öffnen.", "ok");
+    } catch (e) { msg(String(e.message || e), "err"); }
+  });
+
+  $("resetBtn").addEventListener("click", async () => {
+    if (!confirm("Alle Einstellungen des Moduls zurücksetzen? WLAN-Name und Passwort werden wieder zu den Standardwerten.")) return;
+    try {
+      const r = await fetch("/api/reset", {method: "POST"});
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || "Fehler");
+      msg("Zurückgesetzt. Das Modul startet neu – WLAN „Flipper-Remote-…“, Passwort „flipperzero“.", "ok");
+    } catch (e) { msg("Zurücksetzen fehlgeschlagen.", "err"); }
+  });
+
+  /* ---------- Hilfen ---------- */
+  function esc(s) { return String(s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c])); }
+  const BOOT_REASON = {poweron: "Einschalten/RESET", ext: "RESET", sw: "Neustart", panic: "nach Absturz", wdt: "nach Watchdog",
+    deepsleep: "aus dem Tiefschlaf", brownout: "nach Unterspannung", other: "unbekannt"};
+  function fmtTime(s) { const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60; return (h ? h + " h " : "") + m + " min"; }
+
+  // leeres Display zeichnen und los
+  renderFavs();
+  render(new Uint8Array(1024), 0);
+  updateUi();
+  if (REMOTE) startRemote();
+  else (async () => {
+    const w = await whoami();
+    if (w) setMe(w, true);
+    if (w && w.lock && !w.allowed) showLock(lockWhy(w)); else connect();
+  })();
+})();
+</script>
+</body>
+</html>

@@ -192,6 +192,19 @@ svg{display:block}
 .hostrow span{color:var(--muted);font-size:15px}
 .netstate{font-size:13px;line-height:1.45;padding:10px 12px;border-radius:11px;background:var(--bg);color:var(--muted);margin-bottom:12px}
 .netstate b{color:var(--text)}
+.loccard{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px 14px;margin-bottom:16px}
+.loccard .formmsg:empty{display:none}
+.loc-title{display:flex;align-items:center;gap:7px;font-weight:650;font-size:14px}
+.loc-title svg{width:17px;height:17px;color:var(--accent)}
+.loc-coord{font:13px/1.5 var(--mono);color:var(--text);word-break:break-word;margin:8px 0 2px}
+.loc-meta{font-size:12px;color:var(--muted);margin:0}
+.loc-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.loc-actions .btn{margin-top:0;flex:1 1 42%;height:42px;font-size:14px}
+.loc-actions a.btn{display:flex;align-items:center;justify-content:center;text-decoration:none;color:var(--text)}
+.loc-form{margin-top:10px}
+.loc-form .row2{display:flex;gap:8px}
+.loc-form .field{margin-top:8px}
+.loc-form .loc-actions .btn{flex:1 1 42%}
 .netstate.ok{color:var(--good)}
 .netlist{display:flex;flex-direction:column;gap:2px;background:var(--bg);border-radius:11px;padding:4px;margin-bottom:12px}
 .netlist:empty{display:none}
@@ -389,6 +402,34 @@ svg{display:block}
   </section>
 
   <div class="bottom">
+    <div class="loccard" id="locCard" hidden>
+      <div class="loc-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2.4"/></svg>
+        Standort des Moduls
+      </div>
+      <div class="loc-coord" id="locCoord">—</div>
+      <div class="loc-meta" id="locMeta"></div>
+      <div class="loc-actions">
+        <button class="btn ghost" id="locGet" type="button">Standort abrufen</button>
+        <a class="btn ghost" id="locMap" target="_blank" rel="noopener noreferrer" hidden>Auf der Karte</a>
+      </div>
+      <div class="loc-actions" id="locAdmin" hidden>
+        <button class="btn ghost" id="locSaveBtn" type="button" hidden>Hier ist „Zuhause“</button>
+        <button class="btn ghost" id="locForgetBtn" type="button" hidden>„Zuhause“ löschen</button>
+      </div>
+      <div class="loc-form" id="locForm" hidden>
+        <div class="field"><label for="locLabel">Name des Orts</label><input id="locLabel" maxlength="24" autocomplete="off" value="Zuhause"></div>
+        <div class="row2">
+          <div class="field"><label for="locLat">Breite</label><input id="locLat" inputmode="decimal" autocomplete="off" placeholder="52.516275"></div>
+          <div class="field"><label for="locLng">Länge</label><input id="locLng" inputmode="decimal" autocomplete="off" placeholder="13.377704"></div>
+        </div>
+        <div class="loc-actions">
+          <button class="btn ghost" id="locGps" type="button">Mein GPS</button>
+          <button class="btn primary" id="locSaveGo" type="button">Speichern</button>
+        </div>
+      </div>
+      <p class="formmsg" id="locMsg"></p>
+    </div>
     <div class="apps-label" id="favsLabel">Karten</div>
     <nav class="apps" id="favs"></nav>
     <div class="apps-label" id="appsLabel">App starten</div>
@@ -546,6 +587,20 @@ svg{display:block}
   </div>
   </div>
 
+  <div id="locSec" data-need="admin">
+  <h3>Standort des Moduls</h3>
+  <div class="toggle"><div>Standort teilen<small>Das Modul bestimmt seinen Standort (WLAN-Ortung über einen Dienst, grobe IP-Ortung als Rückfall) und zeigt ihn Geräten mit dem Recht „Standort sehen“. Du kannst für dein Heim-WLAN auch einen festen Ort hinterlegen – exakt und ganz ohne Dienst. Das Modul hat kein GPS.</small></div><input type="checkbox" id="fLocOn"></div>
+  <div id="locCfg">
+    <div style="height:10px"></div>
+    <div class="field"><label for="fLocSvc">WLAN-Ortungsdienst</label>
+      <select id="fLocSvc"><option value="0">beaconDB – gratis, ohne Schlüssel</option><option value="1">Google – genauer, API-Schlüssel nötig</option><option value="2">eigener Dienst …</option></select></div>
+    <div class="field" id="locKeyField" hidden><label for="fLocKey">Google-API-Schlüssel</label><input id="fLocKey" maxlength="95" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="AIza…"></div>
+    <div class="field" id="locUrlField" hidden><label for="fLocUrl">Adresse des Diensts (Google-Format)</label><input id="fLocUrl" maxlength="127" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://…/v1/geolocate"></div>
+    <p class="note">beaconDB ist gemeinnützig und ohne Anmeldung – die Abdeckung schwankt je nach Gegend. Google ist genauer, braucht aber ein kostenloses Google-Cloud-Konto mit API-Schlüssel. Zur Ortung gehen die MAC-Adressen der Router in der Nähe an den Dienst; mehr dazu in der Anleitung. Gilt nach „Speichern &amp; neu starten“.</p>
+  </div>
+  <div style="height:6px"></div>
+  </div>
+
   <div data-need="admin">
 
   <h3>WLAN des Moduls</h3>
@@ -648,7 +703,7 @@ svg{display:block}
   /* ---------- Rollen und Rechte ----------
      Das Modul schickt die eigene Rolle ({"t":"me"}): Was sie nicht darf, blendet die App aus.
      Geprüft wird trotzdem im Modul – die App ist nur die Anzeige. */
-  const P = {keys: 1, apps: 2, cards: 4, files: 8, power: 16, approve: 32, remote: 64, admin: 128};
+  const P = {keys: 1, apps: 2, cards: 4, files: 8, power: 16, approve: 32, remote: 64, admin: 128, loc: 256};
   const PERMS = [
     [1, "Flipper bedienen", "Steuerkreuz, OK und Zurück"],
     [2, "Apps starten", "Leiste „App starten“"],
@@ -657,6 +712,7 @@ svg{display:block}
     [16, "Modul ausschalten", "„Jetzt ausschalten“ und „Anlassen“ bei schwachem Akku"],
     [32, "Neue Geräte zulassen", "Anfragen erlauben oder ablehnen – neue Geräte bekommen dann die Standardrolle"],
     [64, "Fernzugriff übers Internet", "von unterwegs steuern, mit eigenem Kopplungslink (die anderen Rechte gelten auch dort)"],
+    [256, "Standort sehen", "wo das Modul gerade ist (WLAN-/IP-Ortung oder hinterlegtes Zuhause)"],
   ];
   let me = {pm: 255, lock: false, rid: -1, role: "", left: -1, at: 0, dev: "", rmt: false}, warned = 1e9;
   const nowSec = () => Math.floor(Date.now() / 1000);
@@ -1091,6 +1147,8 @@ svg{display:block}
     });
     if (!may(P.admin)) $("fwSection").hidden = true;
     $("rmtSec").hidden = !(may(P.admin) ? rmtAvail : me.rmt && may(P.remote));
+    $("locCard").hidden = !may(P.loc);
+    if (!may(P.loc)) { locData = null; $("locForm").hidden = true; }
     if ((!may(P.files) && $("fileSheet").classList.contains("open")) || (!may(P.cards) && $("cardSheet").classList.contains("open"))) closeSheets();
     renderAccess();
   }
@@ -1121,6 +1179,103 @@ svg{display:block}
     $("accState").innerHTML = "<b>" + esc(me.dev || "Dieses Gerät") + "</b> · Rolle <b>" + esc(me.role) + "</b><br>Darf: " + esc(permText(me.pm)) + "<br>" +
       (l === -1 ? "Zugang ohne Zeitgrenze" : l === -2 ? "Zeitgrenze: Restzeit gerade unbekannt" : "Zugang endet in <b>" + fmtLeft(l) + "</b> – danach neu um Freigabe fragen");
   }
+
+  /* ---------- Standort des Moduls ----------
+     Das Modul hat kein GPS: Es bestimmt seinen Ort über einen WLAN-Ortungsdienst, grob über die
+     IP-Adresse oder aus einem fest hinterlegten Heim-Netz. Die App zeigt nur das Ergebnis. */
+  let locData = null, locBusy = false;
+  const LOC_SRC = {wifi: "WLAN-Ortung", ip: "ungefähr (IP-Ortung)", saved: "gespeicherter Ort"};
+  const fix5 = (x) => (Math.round(x * 1e5) / 1e5).toFixed(5);
+  async function loadLocation() {
+    if (locBusy) return;
+    locBusy = true;
+    $("locGet").textContent = "Suche…";
+    $("locGet").disabled = true;
+    $("locMsg").textContent = "";
+    try {
+      const r = await fetch("/api/location", {cache: "no-store"});
+      if (!r.ok) throw 0;
+      locData = await r.json();
+    } catch (e) {
+      locData = null;
+      $("locCoord").textContent = "Standort gerade nicht abrufbar";
+      $("locMeta").textContent = "";
+    }
+    $("locGet").disabled = false;
+    locBusy = false;
+    renderLocation();
+  }
+  function renderLocation() {
+    const j = locData || {}, admin = may(P.admin);
+    const fix = j.ok && j.src && j.src !== "none" && typeof j.lat === "number";
+    $("locGet").textContent = locData ? "Aktualisieren" : "Standort abrufen";
+    if (fix) {
+      $("locCoord").textContent = fix5(j.lat) + ", " + fix5(j.lng);
+      let m = j.src === "saved" ? ("„" + (j.label || "Zuhause") + "“") : (LOC_SRC[j.src] || "");
+      if (j.src === "wifi" && j.acc > 0) m += " · auf etwa " + j.acc + " m genau";
+      if (j.src === "ip" && j.city) m += " · " + j.city;
+      if (j.ssid) m += " · Netz: " + j.ssid;
+      $("locMeta").textContent = m;
+      $("locMap").href = "https://www.openstreetmap.org/?mlat=" + j.lat + "&mlon=" + j.lng + "#map=16/" + j.lat + "/" + j.lng;
+      $("locMap").hidden = false;
+    } else if (locData) {
+      $("locCoord").textContent = j.on === false ? "Standort-Teilen ist aus" : "Standort konnte nicht bestimmt werden";
+      $("locMeta").textContent = j.on === false
+        ? (admin ? "In den Einstellungen unter „Standort des Moduls“ einschalten." : "Ein Admin kann es in den Einstellungen einschalten.")
+        : (j.connected ? (j.ssid ? "Netz: " + j.ssid + " – kein Dienst hat den Ort erkannt" : "") : "Das Modul ist mit keinem WLAN verbunden");
+      $("locMap").hidden = true;
+    }
+    $("locAdmin").hidden = !admin || !locData;
+    $("locSaveBtn").hidden = !(admin && j.canSave && !j.saved);
+    $("locForgetBtn").hidden = !(admin && j.saved);
+    if (!admin || !j.canSave) $("locForm").hidden = true;
+  }
+  function tryGps() {
+    if (!navigator.geolocation || !window.isSecureContext) {
+      $("locMsg").textContent = "Das Handy-GPS geht nur über die verschlüsselte Internet-Seite (https). Hier die Koordinaten von Hand eintragen (z. B. aus einer Karten-App).";
+      return;
+    }
+    $("locMsg").textContent = "Standort wird vom Handy geholt…";
+    navigator.geolocation.getCurrentPosition(p => {
+      $("locLat").value = p.coords.latitude.toFixed(6);
+      $("locLng").value = p.coords.longitude.toFixed(6);
+      $("locMsg").textContent = "Standort vom Handy übernommen.";
+    }, e => { $("locMsg").textContent = "Konnte den Handy-Standort nicht lesen (Berechtigung?). Koordinaten von Hand eintragen."; },
+    {enableHighAccuracy: true, timeout: 8000, maximumAge: 0});
+  }
+  $("locGet").addEventListener("click", loadLocation);
+  $("locMap").addEventListener("click", e => { if ($("locMap").hidden) e.preventDefault(); });
+  $("locSaveBtn").addEventListener("click", () => {
+    const j = locData || {};
+    $("locLabel").value = "Zuhause";
+    if (typeof j.lat === "number" && j.src !== "ip") { $("locLat").value = fix5(j.lat); $("locLng").value = fix5(j.lng); }
+    else { $("locLat").value = ""; $("locLng").value = ""; }
+    $("locMsg").textContent = "";
+    $("locForm").hidden = false;
+  });
+  $("locGps").addEventListener("click", tryGps);
+  $("locSaveGo").addEventListener("click", async () => {
+    const lat = parseFloat($("locLat").value.replace(",", ".")), lng = parseFloat($("locLng").value.replace(",", "."));
+    if (!isFinite(lat) || !isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) { $("locMsg").textContent = "Bitte gültige Koordinaten eingeben."; return; }
+    const label = $("locLabel").value.trim() || "Zuhause";
+    try {
+      const r = await fetch("/api/location", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({save: {lat, lng, label}})});
+      const j = await r.json();
+      if (!j.ok) { $("locMsg").textContent = j.error || "Speichern fehlgeschlagen."; return; }
+      $("locForm").hidden = true;
+      toast("Ort als „" + label + "“ gespeichert");
+      loadLocation();
+    } catch (e) { $("locMsg").textContent = "Speichern fehlgeschlagen."; }
+  });
+  $("locForgetBtn").addEventListener("click", async () => {
+    try {
+      const r = await fetch("/api/location", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({forget: true})});
+      const j = await r.json();
+      if (j.ok) { toast("Gespeicherter Ort gelöscht"); loadLocation(); }
+      else $("locMsg").textContent = j.error || "Löschen fehlgeschlagen.";
+    } catch (e) {}
+  });
+
   /* Fern-Modus: Koppeln und „kein Zugriff“ */
   const RBOX = {
     pair: ["Fernzugriff einrichten", "Diese Seite steuert deinen Flipper übers Internet. Dafür braucht sie den Kopplungscode deines Geräts: Öffne zu Hause (im WLAN des Moduls oder im Heim-WLAN) ⚙️ → „Fernzugriff übers Internet“ → „Kopplungslink erzeugen“ und tippe „Öffnen“ – oder kopiere den Code hier hinein."],
@@ -2273,6 +2428,13 @@ svg{display:block}
     $("rmtLinkBtn").hidden = !j.remote_on && may(P.admin);
     $("rmtDevField").hidden = !may(P.admin) || !j.remote_on;
   }
+  function updateLocUi() {
+    const on = $("fLocOn").checked, svc = $("fLocSvc").value;
+    $("locCfg").hidden = !on;
+    $("locKeyField").hidden = svc !== "1";
+    $("locUrlField").hidden = svc !== "2";
+  }
+  ["fLocOn", "fLocSvc"].forEach(id => $(id).addEventListener("change", updateLocUi));
   ["fRemote", "fBroker"].forEach(id => $(id).addEventListener("change", updateRemoteUi));
   // Offene WLANs und Fernzugriff brauchen die Geräte-Sperre: gleich mit einschalten
   ["fOpenAuto", "fRemote"].forEach(id => $(id).addEventListener("change", e => {
@@ -2496,6 +2658,10 @@ svg{display:block}
       $("fRemote").checked = !!j.remote_on;
       $("fBroker").value = String(j.remote_broker == null ? 1 : j.remote_broker);
       $("fRmMqtt").value = j.remote_mqtt || ""; $("fRmWss").value = j.remote_wss || ""; $("fRmPage").value = j.remote_page || "";
+      $("fLocOn").checked = !!j.loc_on;
+      $("fLocSvc").value = String(j.loc_service == null ? 0 : j.loc_service);
+      $("fLocKey").value = j.loc_key || ""; $("fLocUrl").value = j.loc_url || "";
+      updateLocUi();
       $("rmtLinkBox").hidden = true;
       updateRemoteUi(); applyPerms();
       devState = null; renderDevices(); loadDevices();
@@ -2562,6 +2728,12 @@ svg{display:block}
         return msg("Eigener Vermittler: Adresse fürs Modul (mqtt://… oder ws://…) und fürs Handy (wss://…) eintragen.", "err");
       if (body.remote_on && !body.sta_enabled) return msg("Für den Fernzugriff muss das Modul mit einem WLAN mit Internet verbunden sein (oben „Mit WLAN verbinden“).", "err");
     }
+    body.loc_on = $("fLocOn").checked;
+    body.loc_service = Number($("fLocSvc").value);
+    body.loc_key = $("fLocKey").value.trim();
+    body.loc_url = $("fLocUrl").value.trim();
+    if (body.loc_on && body.loc_service === 1 && !body.loc_key) return msg("Die Google-Ortung braucht einen API-Schlüssel – oder nimm beaconDB (gratis).", "err");
+    if (body.loc_on && body.loc_service === 2 && !/^https:\/\//.test(body.loc_url)) return msg("Eigener Ortungsdienst: Adresse muss mit https:// beginnen.", "err");
     if ((body.open_auto || body.remote_on) && !body.sta_lock) return msg("Offene WLANs und Fernzugriff gehen nur zusammen mit „Im WLAN nur freigegebene Geräte“.", "err");
     if (body.sta_enabled && !body.nets.length && !body.open_auto) return msg("Bitte mindestens ein WLAN hinzufügen.", "err");
     const wk = wakeCheck();

@@ -2662,8 +2662,8 @@ svg{display:block}
     return "";
   }
   function standbyCheck() {
-    if (!$("fStaOn").checked || (!netNames().length && !$("fOpenAuto").checked))
-      return "Für die Bereitschaft muss das Modul mit einem WLAN verbunden sein: Trag oben unter „Heim-WLAN oder iPhone-Hotspot“ dein WLAN oder den Hotspot deines iPhones ein.";
+    if (!$("fStaOn").checked || !netNames().length)
+      return "Für die Bereitschaft muss das Modul mit einem gespeicherten WLAN verbunden sein: Trag oben unter „Heim-WLAN oder iPhone-Hotspot“ dein WLAN oder den Hotspot deines iPhones ein (offene WLANs zählen nicht).";
     return "";
   }
   function updateSleepNote() {
@@ -2681,9 +2681,9 @@ svg{display:block}
     else if (m === 3) {
       const host = ($("fHost").value.trim().toLowerCase() || "flipper"), names = netNames();
       const net = netPref && names.includes(netPref) ? netPref : names.join("“ oder „");
-      t = standbyCheck() || "Nutzt 30 Sekunden lang niemand die App, schaltet das Modul sein eigenes WLAN ab und bleibt nur mit „" + net +
+      t = standbyCheck() || "Nutzt 30 Sekunden lang niemand die App und ist kein Handy mit dem WLAN des Moduls verbunden, schaltet das Modul sein eigenes WLAN ab und bleibt nur mit „" + net +
         "“ verbunden. Funk und Chip schlafen dabei zwischen den Signalen des Routers bzw. Hotspots – das spart viel Strom, trotzdem ist das Modul jederzeit sofort da: einfach http://" +
-        host + ".local öffnen (iPhone im selben WLAN bzw. Hotspot an). Ist „" + net + "“ nicht erreichbar, schaltet sich nach 15 Sekunden das eigene WLAN wieder ein. LED: kurz weiß alle 8 Sekunden.";
+        host + ".local öffnen (iPhone im selben WLAN bzw. Hotspot an). Ist „" + net + "“ nicht erreichbar (oder hängt das Modul nur in einem offenen WLAN), schaltet sich nach 15 Sekunden das eigene WLAN wieder ein. Notfalls RESET drücken und innerhalb von 30 Sekunden dem WLAN des Moduls beitreten: Solange du verbunden bist, bleibt es an. LED: aus, kurz weiß alle 8 Sekunden.";
     }
     else if (m === 1) {
       const e = wakeEverySec(), w = Number($("fWakeWin").value), err = wakeCheck();

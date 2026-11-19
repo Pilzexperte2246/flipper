@@ -197,6 +197,7 @@ svg{display:block}
 .loc-coord{font:600 19px/1.4 var(--mono);letter-spacing:-.01em;color:var(--text);word-break:break-word;margin:0 0 4px}
 .loc-meta{font-size:12px;color:var(--muted);margin:0}
 .loc-why{font-size:12px;line-height:1.4;color:var(--accent);margin:6px 0 0}
+.loc-auto{font-size:12px;line-height:1.45;color:var(--muted);margin:8px 0 0;padding-top:8px;border-top:1px solid var(--line);white-space:pre-line}
 .loc-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .loc-actions .btn{margin-top:0;flex:1 1 42%;height:42px;font-size:14px}
 .loc-actions a.btn{display:flex;align-items:center;justify-content:center;text-decoration:none;color:var(--text)}
@@ -457,8 +458,9 @@ svg{display:block}
     <div class="loc-coord" id="locCoord">—</div>
     <div class="loc-meta" id="locMeta"></div>
     <div class="loc-why" id="locWhy" hidden></div>
+    <div class="loc-auto" id="locAuto" hidden></div>
     <div class="loc-actions">
-      <button class="btn ghost" id="locGet" type="button">Standort abrufen</button>
+      <button class="btn ghost" id="locGet" type="button">Jetzt orten</button>
       <a class="btn ghost" id="locMap" target="_blank" rel="noopener noreferrer" hidden>Auf der Karte</a>
     </div>
     <div class="loc-actions" id="locAdmin" hidden>
@@ -478,7 +480,7 @@ svg{display:block}
     </div>
     <p class="formmsg" id="locMsg"></p>
   </div>
-  <p class="note" id="locNote">Das Modul hat kein GPS: Es fragt einen Ortungsdienst nach den WLANs in seiner Nähe. Dafür sucht es kurz die Umgebung ab – das Bild kann dabei ein paar Sekunden stocken.</p>
+  <p class="note" id="locNote">Das Modul hat kein GPS: Es fragt einen Ortungsdienst nach den WLANs in seiner Nähe. Dafür sucht es kurz die Umgebung ab – das Bild kann dabei kurz stocken. Den letzten Ort merkt sich dieses Handy.</p>
   <button class="btn ghost" id="locClose" type="button">Schließen</button>
 </section>
 
@@ -605,6 +607,13 @@ svg{display:block}
       <select id="fLocSvc"><option value="0">beaconDB – gratis, ohne Schlüssel</option><option value="1">Google – genauer, API-Schlüssel nötig</option><option value="2">eigener Dienst …</option></select></div>
     <div class="field" id="locKeyField" hidden><label for="fLocKey">Google-API-Schlüssel</label><input id="fLocKey" maxlength="95" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="AIza…"></div>
     <div class="field" id="locUrlField" hidden><label for="fLocUrl">Adresse des Diensts (Google-Format)</label><input id="fLocUrl" maxlength="127" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://…/v1/geolocate"></div>
+    <div class="field"><label for="fLocAuto">Automatisch orten</label>
+      <select id="fLocAuto"><option value="0">aus – nur auf Knopfdruck</option><option value="5">alle 5 Minuten</option><option value="10">alle 10 Minuten</option><option value="15">alle 15 Minuten</option><option value="30">alle 30 Minuten</option><option value="60">jede Stunde</option></select></div>
+    <div class="row">
+      <div class="field"><label for="fLocDay">Höchstens pro Tag</label><input id="fLocDay" type="number" inputmode="numeric" min="10" max="10000" step="1"></div>
+      <div class="field"><label for="fLocMonth">… pro Monat</label><input id="fLocMonth" type="number" inputmode="numeric" min="100" max="1000000" step="1"></div>
+    </div>
+    <p class="note">Gezählt werden nur Anfragen an den Ortungsdienst – „Zuhause“ und die IP-Ortung kosten nichts. Das Modul teilt die Abfragen so ein, dass beide Grenzen halten: Wird es knapp (auch durch „Jetzt orten“), fragt es automatisch seltener; 10 % des Tages bleiben immer für „Jetzt orten“. Google zählt Tage nach US-Westküstenzeit (bei uns ab 9 Uhr) und schenkt 10.000 Abfragen im Monat.</p>
     <p class="note">beaconDB ist gemeinnützig und ohne Anmeldung – die Abdeckung schwankt je nach Gegend. Google ist genauer, braucht aber ein kostenloses Google-Cloud-Konto mit API-Schlüssel. Zur Ortung gehen die MAC-Adressen der Router in der Nähe an den Dienst; mehr dazu in der Anleitung. Gilt nach „Speichern &amp; neu starten“.</p>
   </div>
   <div style="height:6px"></div>
@@ -1004,6 +1013,7 @@ svg{display:block}
       else if (m.t === "paired") onPaired(m);
       else if (m.t === "me") setMe(m);
       else if (m.t === "bye") showLock(m.why);
+      else if (m.t === "loc") { if (may(P.loc)) loadLocation(false); }
       else if (m.t === "devs") { if ($("sheet").classList.contains("open") && !$("devBox").hidden) loadDevices(); }
       else if (m.t === "deny") toast(DENY[m.w] || "Dafür fehlt diesem Gerät die Berechtigung.", true);
       else if (m.t === "off") {
@@ -1158,7 +1168,7 @@ svg{display:block}
     $("rmtSec").hidden = !(may(P.admin) ? rmtAvail : me.rmt && may(P.remote));
     $("locBtn").hidden = !may(P.loc);
     if (!may(P.loc)) {
-      locData = null; $("locForm").hidden = true;
+      locData = null; $("locForm").hidden = true; locStore(null);
       if ($("locSheet").classList.contains("open")) closeSheets();
     }
     if ((!may(P.files) && $("fileSheet").classList.contains("open")) || (!may(P.cards) && $("cardSheet").classList.contains("open"))) closeSheets();
@@ -1194,34 +1204,72 @@ svg{display:block}
 
   /* ---------- Standort des Moduls ----------
      Das Modul hat kein GPS: Es bestimmt seinen Ort über einen WLAN-Ortungsdienst, grob über die
-     IP-Adresse oder aus einem fest hinterlegten Heim-Netz. Die App zeigt nur das Ergebnis. */
-  let locData = null, locBusy = false, locAt = 0;
+     IP-Adresse oder aus einem fest hinterlegten Heim-Netz – auf Wunsch automatisch alle paar Minuten
+     (so oft, wie Tages- und Monatsgrenze erlauben). Die App holt das letzte Ergebnis ohne neue Suche
+     ab; „Jetzt orten“ fragt neu. Den letzten Ort merkt sich die App im Speicher des Browsers
+     (localStorage): Er bleibt auf dem Handy – ein Cookie ginge bei jedem Aufruf mit hinaus. */
+  const LOC_KEY = "fr-loc";
+  let locData = null, locBusy = false, locAgain = false, locFixAt = 0, locFromStore = false, locTick = 0;
   const LOC_SRC = {wifi: "WLAN-Ortung", ip: "ungefähr (IP-Ortung)", saved: "gespeicherter Ort"};
   const fix5 = (x) => (Math.round(x * 1e5) / 1e5).toFixed(5);
-  async function loadLocation() {
-    if (locBusy) return;
-    locBusy = true;
-    $("locGet").textContent = "Suche…";
-    $("locGet").disabled = true;
-    $("locMsg").textContent = "";
+  const hasFix = (j) => !!(j && j.src && j.src !== "none" && typeof j.lat === "number");
+  function locStore(f) {
+    try { if (f) localStorage.setItem(LOC_KEY, JSON.stringify(f)); else localStorage.removeItem(LOC_KEY); } catch (e) {}
+  }
+  function locRestore() {
     try {
-      const r = await fetch("/api/location", {cache: "no-store"});
+      const f = JSON.parse(localStorage.getItem(LOC_KEY) || "null");
+      if (f && typeof f.lat === "number" && typeof f.lng === "number" && typeof f.fixAt === "number") return f;
+    } catch (e) {}
+    return null;
+  }
+  // Gespeicherten Ort sofort zeigen (bis das Modul antwortet)
+  function locShowStored() {
+    const f = locRestore();
+    if (!f || locData) return;
+    locData = Object.assign({ok: true, on: true}, f);
+    locFixAt = f.fixAt;
+    locFromStore = true;
+  }
+  function fmtAgo(ms) {
+    const s = Math.max(0, Math.round(ms / 1000));
+    if (s < 60) return "gerade eben";
+    if (s < 3600) return "vor " + Math.round(s / 60) + " Min";
+    if (s < 86400) return "vor " + Math.round(s / 3600) + " Std";
+    const d = new Date(Date.now() - ms);
+    return "am " + d.toLocaleDateString("de-DE", {day: "numeric", month: "numeric"}) + " um " + d.toLocaleTimeString("de-DE", {hour: "2-digit", minute: "2-digit"});
+  }
+  const fmtIn = (s) => s < 60 ? "unter 1 Min" : s < 5400 ? Math.round(s / 60) + " Min" : Math.round(s / 3600) + " Std";
+  const fmtClock = (unix) => new Date(unix * 1000).toLocaleTimeString("de-DE", {hour: "2-digit", minute: "2-digit"});
+  const fmtNum = (n) => Number(n).toLocaleString("de-DE");
+  async function loadLocation(fresh) {
+    if (locBusy) { if (fresh) locAgain = true; return; } // neue Abfrage gleich danach nachholen
+    locBusy = true;
+    if (fresh) { $("locGet").textContent = "Suche…"; $("locGet").disabled = true; $("locMsg").textContent = ""; }
+    try {
+      const r = await fetch("/api/location" + (fresh ? "?new=1" : ""), {cache: "no-store"});
       if (!r.ok) throw 0;
-      locData = await r.json();
-      locAt = Date.now();
+      const j = await r.json();
+      if (!may(P.loc)) throw 0; // Recht unterwegs entzogen: nichts zeigen, nichts aufheben
+      locData = j;
+      locFromStore = false;
+      if (hasFix(j)) {
+        locFixAt = Date.now() - Math.max(0, j.age || 0) * 1000;
+        locStore({src: j.src, lat: j.lat, lng: j.lng, acc: j.acc, label: j.label, city: j.city, ssid: j.ssid, aps: j.aps, fixAt: locFixAt});
+      } else if (j.on === false) {
+        locStore(null); // Teilen aus: auch auf dem Handy nichts aufheben
+      }
     } catch (e) {
-      locData = null;
-      $("locCoord").textContent = "Standort gerade nicht abrufbar";
-      $("locMeta").textContent = "";
+      if (!locData) { $("locCoord").textContent = "Standort gerade nicht abrufbar"; $("locMeta").textContent = ""; }
+      else if (fresh) $("locMsg").textContent = "Das Modul antwortet gerade nicht.";
     }
-    $("locGet").disabled = false;
     locBusy = false;
+    if (locAgain && may(P.loc)) { locAgain = false; return loadLocation(true); }
+    locAgain = false;
     renderLocation();
   }
   function renderLocation() {
-    const j = locData || {}, admin = may(P.admin);
-    const fix = j.ok && j.src && j.src !== "none" && typeof j.lat === "number";
-    $("locGet").textContent = locData ? "Aktualisieren" : "Standort abrufen";
+    const j = locData || {}, admin = may(P.admin), fix = hasFix(j);
     if (fix) {
       $("locCoord").textContent = fix5(j.lat) + ", " + fix5(j.lng);
       let m = j.src === "saved" ? ("„" + (j.label || "Zuhause") + "“") : (LOC_SRC[j.src] || "");
@@ -1229,24 +1277,54 @@ svg{display:block}
       if (j.src === "wifi" && j.aps > 0) m += " · aus " + j.aps + " WLANs";
       if (j.src === "ip" && j.city) m += " · " + j.city;
       if (j.ssid) m += " · Netz: " + j.ssid;
+      m += " · " + fmtAgo(Date.now() - locFixAt) + (locFromStore ? " (auf diesem Handy gespeichert)" : "");
       $("locMeta").textContent = m;
       $("locMap").href = "https://www.openstreetmap.org/?mlat=" + j.lat + "&mlon=" + j.lng + "#map=16/" + j.lat + "/" + j.lng;
       $("locMap").hidden = false;
     } else if (locData) {
-      $("locCoord").textContent = j.on === false ? "Standort-Teilen ist aus" : "Standort konnte nicht bestimmt werden";
+      $("locCoord").textContent = j.on === false ? "Standort-Teilen ist aus" : "Noch kein Standort";
       $("locMeta").textContent = j.on === false
         ? (admin ? "In den Einstellungen unter „Standort des Moduls“ einschalten." : "Ein Admin kann es in den Einstellungen einschalten.")
-        : (j.connected ? (j.ssid ? "Netz: " + j.ssid + " – kein Dienst hat den Ort erkannt" : "") : "Das Modul ist mit keinem WLAN verbunden");
+        : (j.connected ? (j.why ? "Netz: " + (j.ssid || "?") + " – kein Dienst hat den Ort erkannt" : "Tippe „Jetzt orten“.") : "Das Modul ist mit keinem WLAN verbunden");
       $("locMap").hidden = true;
     }
-    // Warum die genaue WLAN-Ortung nicht ging (dann kommt nur die grobe IP-Ortung oder nichts)
+    // Warum die letzte Abfrage keine genaue WLAN-Ortung ergab
     const why = locData && j.why ? "WLAN-Ortung ging nicht: " + j.why + (j.aps > 0 ? " · " + j.aps + (j.aps === 1 ? " WLAN" : " WLANs") + " gefunden" : "") : "";
     $("locWhy").textContent = why;
     $("locWhy").hidden = !why;
-    $("locAdmin").hidden = !admin || !locData;
+    // Automatik und Zähler (nur mit frischer Antwort vom Modul)
+    const stats = locData && !locFromStore && j.on && typeof j.used === "number";
+    const lines = [];
+    if (stats) {
+      const toReset = j.reset ? j.reset - Date.now() / 1000 : -1;
+      if (!j.auto) lines.push("Automatisch: aus – nur auf Knopfdruck");
+      else if (!j.clock) lines.push("Automatisch alle " + j.auto + " Min – startet, sobald das Modul die Uhrzeit kennt (öffnet ein Handy die App, stellt es sie)");
+      else if (j.next >= 0 && toReset > 0 && Math.abs(toReset - j.next) < 120)
+        lines.push("Automatisch: Pause bis " + fmtClock(j.reset) + " Uhr (nur noch die Rücklage für „Jetzt orten“ übrig)");
+      else if (j.next >= 0)
+        lines.push("Automatisch alle " + j.auto + " Min · nächste in " + fmtIn(j.next) + (j.next > j.auto * 60 + 90 ? " (seltener, damit es unter der Grenze bleibt)" : ""));
+      lines.push("Heute " + fmtNum(j.used) + " von " + fmtNum(j.budget) + " Abfragen · Monat " + fmtNum(j.mused) + " von " + fmtNum(j.mmax) +
+        (j.reset ? " · neuer Tag um " + fmtClock(j.reset) + " Uhr" : ""));
+    }
+    const auto = lines.join("\n");
+    $("locAuto").textContent = auto;
+    $("locAuto").hidden = !auto;
+    const limit = stats && j.manual === false;
+    $("locGet").textContent = locBusy ? "Suche…" : limit ? "Tagesgrenze erreicht" : "Jetzt orten";
+    $("locGet").disabled = locBusy || limit || j.on === false;
+    $("locAdmin").hidden = !admin || !locData || locFromStore;
     $("locSaveBtn").hidden = !(admin && j.canSave && !j.saved);
     $("locForgetBtn").hidden = !(admin && j.saved);
     if (!admin || !j.canSave) $("locForm").hidden = true;
+  }
+  // Solange das Blatt offen ist: Alter und Countdown nachführen
+  function locTicker() {
+    clearInterval(locTick);
+    locTick = setInterval(() => {
+      if (!$("locSheet").classList.contains("open")) { clearInterval(locTick); return; }
+      if (locData && typeof locData.next === "number" && locData.next > 0) locData.next = Math.max(0, locData.next - 15);
+      renderLocation();
+    }, 15000);
   }
   function tryGps() {
     if (!navigator.geolocation || !window.isSecureContext) {
@@ -1261,13 +1339,18 @@ svg{display:block}
     }, e => { $("locMsg").textContent = "Konnte den Handy-Standort nicht lesen (Berechtigung?). Koordinaten von Hand eintragen."; },
     {enableHighAccuracy: true, timeout: 8000, maximumAge: 0});
   }
-  $("locGet").addEventListener("click", loadLocation);
-  // Pin oben: Blatt öffnen und gleich orten (älter als eine Minute = neu abrufen)
-  $("locBtn").addEventListener("click", () => {
+  $("locGet").addEventListener("click", () => loadLocation(true));
+  // Pin oben: Blatt öffnen, letzten Ort zeigen (gespeichert, dann vom Modul); hat das Modul noch
+  // keinen, gleich orten
+  $("locBtn").addEventListener("click", async () => {
     haptic(); releaseAll();
+    locShowStored();
     openSheetEl("locSheet");
     renderLocation();
-    if (!locData || Date.now() - locAt > 60000) loadLocation();
+    locTicker();
+    await loadLocation(false);
+    const j = locData || {};
+    if (j.on && !hasFix(j) && j.connected && j.manual !== false && !j.why) loadLocation(true);
   });
   $("locClose").addEventListener("click", closeSheets);
   $("locMap").addEventListener("click", e => { if ($("locMap").hidden) e.preventDefault(); });
@@ -1290,14 +1373,14 @@ svg{display:block}
       if (!j.ok) { $("locMsg").textContent = j.error || "Speichern fehlgeschlagen."; return; }
       $("locForm").hidden = true;
       toast("Ort als „" + label + "“ gespeichert");
-      loadLocation();
+      loadLocation(false);
     } catch (e) { $("locMsg").textContent = "Speichern fehlgeschlagen."; }
   });
   $("locForgetBtn").addEventListener("click", async () => {
     try {
       const r = await fetch("/api/location", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({forget: true})});
       const j = await r.json();
-      if (j.ok) { toast("Gespeicherter Ort gelöscht"); loadLocation(); }
+      if (j.ok) { toast("Gespeicherter Ort gelöscht"); loadLocation(true); }
       else $("locMsg").textContent = j.error || "Löschen fehlgeschlagen.";
     } catch (e) {}
   });
@@ -2687,6 +2770,8 @@ svg{display:block}
       $("fLocOn").checked = !!j.loc_on;
       $("fLocSvc").value = String(j.loc_service == null ? 0 : j.loc_service);
       $("fLocKey").value = j.loc_key || ""; $("fLocUrl").value = j.loc_url || "";
+      $("fLocAuto").value = String(j.loc_auto == null ? 5 : j.loc_auto);
+      $("fLocDay").value = j.loc_day == null ? 300 : j.loc_day; $("fLocMonth").value = j.loc_month == null ? 10000 : j.loc_month;
       updateLocUi();
       $("rmtLinkBox").hidden = true;
       updateRemoteUi(); applyPerms();
@@ -2758,6 +2843,11 @@ svg{display:block}
     body.loc_service = Number($("fLocSvc").value);
     body.loc_key = $("fLocKey").value.trim();
     body.loc_url = $("fLocUrl").value.trim();
+    body.loc_auto = Number($("fLocAuto").value);
+    body.loc_day = Math.round(Number($("fLocDay").value));
+    body.loc_month = Math.round(Number($("fLocMonth").value));
+    if (!(body.loc_day >= 10 && body.loc_day <= 10000)) return msg("Standort: höchstens pro Tag 10 bis 10.000 Abfragen.", "err");
+    if (!(body.loc_month >= 100 && body.loc_month <= 1000000)) return msg("Standort: pro Monat 100 bis 1.000.000 Abfragen.", "err");
     if (body.loc_on && body.loc_service === 1 && !body.loc_key) return msg("Die Google-Ortung braucht einen API-Schlüssel – oder nimm beaconDB (gratis).", "err");
     if (body.loc_on && body.loc_service === 2 && !/^https:\/\//.test(body.loc_url)) return msg("Eigener Ortungsdienst: Adresse muss mit https:// beginnen.", "err");
     if ((body.open_auto || body.remote_on) && !body.sta_lock) return msg("Offene WLANs und Fernzugriff gehen nur zusammen mit „Im WLAN nur freigegebene Geräte“.", "err");

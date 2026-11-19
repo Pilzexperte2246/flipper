@@ -323,6 +323,11 @@ svg{display:block}
 .mini.renew{width:34px;padding:0;font-size:17px;line-height:1}
 .sheet h4{font-size:13px;font-weight:650;color:var(--text);margin:18px 0 8px}
 .tag{display:inline-block;font-size:11px;font-weight:650;color:var(--accent);background:var(--accent-soft);border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:1px}
+.safebar{display:flex;align-items:center;gap:10px;padding:10px 10px 10px 14px;border-radius:16px;background:var(--surface);border:1px solid var(--bad)}
+.safebar[hidden]{display:none}
+.safebar svg{flex:none;color:var(--bad)}
+.diagnote{color:var(--bad)}
+.diagpre{white-space:pre-wrap;word-break:break-word;max-height:60vh;overflow:auto;font-size:11px;line-height:1.45;margin-top:10px}
 .codein{font:600 26px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.2em;text-align:center}
 .addbox{background:var(--bg);border-radius:12px;padding:12px;margin-bottom:10px;border:1px solid var(--line)}
 .addhead{display:flex;align-items:center;justify-content:space-between;gap:10px}
@@ -388,6 +393,11 @@ svg{display:block}
       <span class="emu-dot"></span>
       <div class="emu-text"><b id="emuName">–</b><small id="emuState">wird emuliert</small></div>
       <button class="emu-stop" id="emuStop">Stopp</button>
+    </div>
+    <div class="safebar" id="safeBar" role="alert" hidden>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 16H3z"/><path d="M12 10v4"/><path d="M12 17h.01"/></svg>
+      <div class="emu-text"><b>Abgesicherter Start</b><small id="safeText">Energiesparen, Fernzugriff und Orten sind aus</small></div>
+      <button class="emu-stop" id="safeOpen">Bericht</button>
     </div>
     <div class="lowbar" id="lowBar" role="alert" hidden>
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="17" height="10" rx="2"/><path d="M22 11v2"/><path d="M6 10v4"/></svg>
@@ -698,6 +708,12 @@ svg{display:block}
   <div data-need="admin">
   <h3>Info</h3>
   <div class="info" id="info">–</div>
+  <div data-need="admin"><div id="diagBox" hidden>
+    <p class="note diagnote" id="diagNote"></p>
+    <div class="rowbtns"><button class="btn ghost" id="diagShow" type="button">Fehlerbericht anzeigen</button><button class="btn primary" id="diagRestart" type="button">Normal neu starten</button></div>
+    <pre class="info diagpre" id="diagText" hidden></pre>
+    <button class="btn ghost" id="diagCopy" type="button" hidden>Bericht kopieren</button>
+  </div></div>
   </div>
   <button class="btn ghost" id="closeBtn">Schließen</button>
   <button class="btn danger" id="resetBtn" data-need="admin">Auf Werkseinstellungen zurücksetzen</button>
@@ -1158,7 +1174,9 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     if (!m || typeof m.pm !== "number") return;
     const old = me;
     me = {pm: m.pm, lock: !!m.lock, rid: typeof m.rid === "number" ? m.rid : -1, role: m.role || "",
-      left: typeof m.left === "number" ? m.left : -1, at: Date.now(), dev: m.dev || "", rmt: !!m.rmt};
+      left: typeof m.left === "number" ? m.left : -1, at: Date.now(), dev: m.dev || "", rmt: !!m.rmt, safe: m.safe || 0};
+    $("safeBar").hidden = !me.safe;
+    $("safeText").textContent = me.safe >= 2 ? "Energiesparen, Fernzugriff, Orten und die Flipper-Verbindung sind aus" : "Energiesparen, Fernzugriff und Orten sind aus";
     const l = me.left;
     warned = l > 300 ? 1e9 : l > 60 ? 300 : 60;
     if (!quiet && old.at) {
@@ -2899,6 +2917,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
         "Verbind.  " + (s.rc || 0) + "× aufgebaut, " + (s.e || 0) + " Fehler" +
         (s.br && link === 2 && s.br < j.baud ? "\nLeitung   " + s.br + " Baud – wegen Übertragungsfehlern von " + j.baud + " heruntergeschaltet" : "") +
         (s.lg ? "\nZuletzt   " + s.lg : "");
+      showDiagBox(j.boot);
       $("saveBtn").disabled = false;
     } catch (e) {
       msg("Einstellungen nicht erreichbar – bist du mit dem Modul-WLAN verbunden?", "err");
@@ -3033,6 +3052,67 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 
   /* ---------- Hilfen ---------- */
   function esc(s) { return String(s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c])); }
+  /* Fehlerbericht: Was war los, als das Modul hängen blieb oder abstürzte? (nur Admin) */
+  const LINK_NAMES = ["sucht den Flipper", "verbindet", "verbunden", "ruht (Energiesparen)"];
+  const CRASH = {panic: 1, wdt: 1, brownout: 1};
+  function showDiagBox(boot) {
+    const crashed = !!CRASH[boot], safe = me.safe || 0;
+    $("diagBox").hidden = !(crashed || safe);
+    if ($("diagBox").hidden) return;
+    $("diagNote").textContent = safe
+      ? "Abgesicherter Start: Das Modul ist " + (safe >= 2 ? "mehrmals" : "zweimal") + " kurz nach dem Start hängen geblieben oder abgestürzt. Bis zum nächsten Neustart sind Energiesparen, Fernzugriff, automatisches Orten und Akku-Aus aus" +
+        (safe >= 2 ? ", dazu die Verbindung zum Flipper" : "") + " – deine Einstellungen bleiben gespeichert. Schick den Fehlerbericht an den Entwickler; „Normal neu starten“ versucht es wieder mit allen Einstellungen."
+      : "Der letzte Neustart kam " + (BOOT_REASON[boot] || boot) + ". Der Fehlerbericht zeigt, was davor los war.";
+    $("diagRestart").hidden = !safe;
+  }
+  function fmtRec(r) {
+    if (!r) return "";
+    const f = r.flags || 0, st = [];
+    if (f & 1) st.push("Bereitschaft"); if (f & 16) st.push("Energiesparmodus"); if (f & 2) st.push("im Heim-WLAN");
+    if (f & 4) st.push("App offen"); if (f & 8) st.push("Fernzugriff verbunden");
+    const lvl = (v) => v === 0 ? "low" : v === 1 ? "high" : "–";
+    let t = "Laufzeit  " + r.uptime + " s nach dem Start\n" +
+      "Flipper   " + (LINK_NAMES[r.link] || r.link) + " · Leitung " + lvl(r.rx) + "\n" +
+      "Zustand   " + (st.join(" · ") || "–") + "\n" +
+      "Speicher  " + r.heap + " KB frei (wenigstens " + r.heapMin + " KB)\n";
+    if (r.wdtTask) t += "Watchdog  lief: " + r.wdtTask + " · Leitung " + lvl(r.wdtRx) + "\n";
+    if (r.panic) t += "Absturz   " + r.panic + (r.why ? " (" + r.why + ")" : "") + " bei " + r.pc + "\n" + (r.bt && r.bt.length ? "Kette     " + r.bt.join(" ") + "\n" : "");
+    return t + "Protokoll\n" + (r.log || "(leer)");
+  }
+  let diagReport = "";
+  $("diagShow").addEventListener("click", async () => {
+    $("diagShow").disabled = true;
+    try {
+      const r = await fetch("/api/diag", {cache: "no-store"});
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || "Fehler " + r.status);
+      diagReport = "Fehlerbericht · Firmware " + ($("info").textContent.match(/Firmware (\S+)/) || [0, "?"])[1] + " · Start: " + j.boot + " · abgesichert: " + j.safe +
+        " (Serie " + j.streak + ") · Start Nr. " + j.boots + "\n\n" +
+        (j.prev ? "=== Vor dem Neustart ===\n" + fmtRec(j.prev) + "\n" : "Vom Lauf davor ist nichts gespeichert (Stromausfall dazwischen?).\n\n") +
+        "=== Jetzt ===\n" + fmtRec(j.now);
+      $("diagText").textContent = diagReport;
+      $("diagText").hidden = false; $("diagCopy").hidden = false;
+      $("diagText").scrollIntoView({block: "nearest", behavior: "smooth"});
+    } catch (e) { toast("Bericht nicht abrufbar: " + (e.message || e), true); }
+    $("diagShow").disabled = false;
+  });
+  $("diagCopy").addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(diagReport); toast("Bericht kopiert"); }
+    catch (e) {
+      const sel = window.getSelection(), range = document.createRange();
+      range.selectNodeContents($("diagText")); sel.removeAllRanges(); sel.addRange(range);
+      toast("Markiert – jetzt „Kopieren“ wählen");
+    }
+  });
+  $("diagRestart").addEventListener("click", async () => {
+    if (!confirm("Normal neu starten – mit allen Einstellungen? Bleibt das Modul wieder hängen, startet es danach von selbst wieder abgesichert.")) return;
+    try { await postJson("/api/diag", {restart: true}); toast("Startet neu …"); setTimeout(() => location.reload(), 9000); }
+    catch (e) { toast(String(e.message || e), true); }
+  });
+  $("safeOpen").addEventListener("click", () => {
+    $("settingsBtn").click();
+    setTimeout(() => { if (!$("diagBox").hidden) $("diagBox").scrollIntoView({block: "center", behavior: "smooth"}); }, 1200);
+  });
   const BOOT_REASON = {poweron: "Einschalten/RESET", ext: "RESET", sw: "Neustart", panic: "nach Absturz", wdt: "nach Watchdog",
     deepsleep: "aus dem Tiefschlaf", brownout: "nach Unterspannung", other: "unbekannt"};
   function fmtTime(s) { const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60; return (h ? h + " h " : "") + m + " min"; }

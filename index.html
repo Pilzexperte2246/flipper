@@ -205,6 +205,37 @@ svg{display:block}
 .loc-form .row2{display:flex;gap:8px}
 .loc-form .field{margin-top:8px}
 .loc-form .loc-actions .btn{flex:1 1 42%}
+/* Standortverlauf */
+.histbox{background:var(--bg);border-radius:14px;padding:12px 12px 10px;margin-bottom:10px}
+.hist-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:8px}
+.hist-head b{font-size:15px}
+.hist-src{font-size:12px;color:var(--muted);text-align:right}
+.hist-seg{grid-template-columns:repeat(3,1fr);background:var(--surface);margin-bottom:8px}
+.hist-seg button{height:32px;font-size:13px}
+.hist-range{display:flex;gap:8px}
+.hist-range .field{flex:1;min-width:0;margin-bottom:8px}
+.hist-range input{font-size:14px;padding:9px 8px}
+.histmap{position:relative;height:240px;border-radius:11px;overflow:hidden;background:#201c18;margin-bottom:8px;touch-action:none}
+.histmap .tiles{position:absolute;inset:0;filter:grayscale(.35) brightness(.78) contrast(1.05)}
+.histmap .tiles img{position:absolute;width:256px;height:256px;-webkit-user-drag:none;user-select:none}
+.histmap svg{position:absolute;inset:0;width:100%;height:100%}
+.histmap .hist-attr{position:absolute;right:4px;bottom:3px;font-size:9px;color:rgba(255,255,255,.75);background:rgba(0,0,0,.45);padding:1px 4px;border-radius:4px}
+.histmap .hist-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:20px;font-size:13px;color:var(--muted)}
+.hist-zoom{position:absolute;right:6px;top:6px;display:flex;flex-direction:column;gap:4px}
+.hist-zoom button{width:30px;height:30px;border-radius:8px;background:rgba(20,18,16,.8);font-size:18px;font-weight:700;color:var(--text)}
+.hist-sum{font-size:12px;line-height:1.45;color:var(--muted);margin:2px 0 6px;white-space:pre-line}
+.histlist{display:flex;flex-direction:column}
+.hist-day{font-size:12px;font-weight:650;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin:10px 0 4px}
+.hist-item{display:flex;align-items:center;gap:10px;padding:9px 4px;border-top:1px solid var(--line);text-align:left;width:100%}
+.hist-item .hdot{flex:0 0 10px;height:10px;border-radius:50%;background:var(--accent)}
+.hist-item .hdot.open{background:transparent;border:2px dashed var(--muted)}
+.hist-item .hdot.none{background:var(--faint)}
+.hist-item .htxt{flex:1;min-width:0}
+.hist-item .htime{font-size:14px;font-weight:600}
+.hist-item .hwhere{font:12px/1.35 var(--mono);color:var(--muted);word-break:break-word}
+.hist-item.sel{background:var(--accent-soft);border-radius:10px}
+.hist-item a{flex:0 0 auto;font-size:13px;color:var(--accent);text-decoration:none;padding:6px 4px}
+.hist-more{font-size:13px;color:var(--accent);padding:10px 4px;text-align:left}
 .netstate.ok{color:var(--good)}
 .netlist{display:flex;flex-direction:column;gap:2px;background:var(--bg);border-radius:11px;padding:4px;margin-bottom:12px}
 .netlist:empty{display:none}
@@ -494,7 +525,21 @@ svg{display:block}
     </div>
     <p class="formmsg" id="locMsg"></p>
   </div>
-  <p class="note" id="locNote">Das Modul hat kein GPS: Es fragt einen Ortungsdienst nach den WLANs in seiner Nähe. Dafür sucht es kurz die Umgebung ab – das Bild kann dabei kurz stocken. Den letzten Ort merkt sich dieses Handy.</p>
+  <div class="histbox" id="histBox" hidden>
+    <div class="hist-head"><b>Verlauf</b><span class="hist-src" id="histSrc"></span></div>
+    <div class="seg hist-seg" id="histSeg"><button data-r="3h" type="button">3 Std</button><button data-r="today" type="button">Heute</button><button data-r="24h" type="button" class="on">24 Std</button><button data-r="7d" type="button">7 Tage</button><button data-r="all" type="button">Alles</button><button data-r="custom" type="button">Zeitraum …</button></div>
+    <div class="hist-range" id="histRange" hidden>
+      <div class="field"><label for="histFrom">Von</label><input type="datetime-local" id="histFrom"></div>
+      <div class="field"><label for="histTo">Bis</label><input type="datetime-local" id="histTo"></div>
+    </div>
+    <div class="histmap" id="histMap"><div class="tiles" id="histTiles"></div><svg id="histSvg" aria-label="Karte des Verlaufs"></svg>
+      <div class="hist-zoom"><button type="button" id="histZin" aria-label="Näher">+</button><button type="button" id="histZout" aria-label="Weiter weg">−</button></div>
+      <div class="hist-attr" id="histAttr" hidden>© OpenStreetMap</div><div class="hist-empty" id="histEmpty" hidden></div></div>
+    <div class="hist-sum" id="histSum"></div>
+    <div class="histlist" id="histList"></div>
+    <button class="btn ghost" id="histClear" type="button" hidden>Verlauf löschen</button>
+  </div>
+  <p class="note" id="locNote">Das Modul hat kein GPS: Es fragt einen Ortungsdienst nach den WLANs in seiner Nähe. Dafür sucht es kurz die Umgebung ab – das Bild kann dabei kurz stocken. Den letzten Ort und den Verlauf merkt sich dieses Handy – du siehst sie auch ohne Verbindung zum Modul.</p>
   <button class="btn ghost" id="locClose" type="button">Schließen</button>
 </section>
 
@@ -638,7 +683,9 @@ svg{display:block}
       <select id="fLocSvc"><option value="0">beaconDB – gratis, ohne Schlüssel</option><option value="1">Google – genauer, API-Schlüssel nötig</option><option value="2">eigener Dienst …</option></select></div>
     <div class="field" id="locKeyField" hidden><label for="fLocKey">Google-API-Schlüssel</label><input id="fLocKey" maxlength="95" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="AIza…"></div>
     <div class="field" id="locUrlField" hidden><label for="fLocUrl">Adresse des Diensts (Google-Format)</label><input id="fLocUrl" maxlength="127" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://…/v1/geolocate"></div>
-    <div class="field"><label for="fLocAuto">Automatisch orten</label>
+    <div class="toggle"><div>Standortverlauf<small>Das Modul sucht alle 5 Minuten die WLANs in der Umgebung ab und merkt sich mit Uhrzeit, wo es war – auch ohne Internet (im Flash des Moduls). Sobald es Internet hat, löst es neue Orte über Google auf (nur die genaue WLAN-Ortung) und teilt den Verlauf über den Fernzugriff, auch wenn kein Handy verbunden ist. Am selben Ort fragt es nicht neu.</small></div><input type="checkbox" id="fLocHist"></div>
+    <p class="note" id="locHistNote" hidden></p>
+    <div class="field" id="locAutoField"><label for="fLocAuto">Automatisch orten</label>
       <select id="fLocAuto"><option value="0">aus – nur auf Knopfdruck</option><option value="5">alle 5 Minuten</option><option value="10">alle 10 Minuten</option><option value="15">alle 15 Minuten</option><option value="30">alle 30 Minuten</option><option value="60">jede Stunde</option></select></div>
     <div class="row">
       <div class="field"><label for="fLocDay">Höchstens pro Tag</label><input id="fLocDay" type="number" inputmode="numeric" min="10" max="10000" step="1"></div>
@@ -905,12 +952,23 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       this.kdKey = await gcmKey(pair.kd);
       this.down = "fzr/" + pair.mid + "/d/" + hexOf(this.sid);
       this.up = "fzr/" + pair.mid + "/u";
+      // Standortverlauf, den das Modul beim Vermittler hinterlegt (auch wenn es gerade offline ist)
+      this.histTopic = "fzr/" + pair.mid + "/h/" + hexOf(this.kid);
+      this.khKey = await gcmKey(await hmac(pair.kd, te.encode("fzr-hist")));
       this.setSt("broker");
-      this.mqtt = Mqtt(pair.url, (t, d) => { if (t === this.down) this.chain = this.chain.then(() => this.onPacket(d)).catch(() => {}); },
-        (on) => { if (on) { this.mqtt.subscribe(this.down); this.hello(); } else this.lost(); });
+      this.mqtt = Mqtt(pair.url, (t, d) => {
+        if (t === this.down) this.chain = this.chain.then(() => this.onPacket(d)).catch(() => {});
+        else if (t === this.histTopic) this.onHist(d).catch(() => {});
+      }, (on) => { if (on) { this.mqtt.subscribe(this.down); this.mqtt.subscribe(this.histTopic); this.hello(); } else this.lost(); });
       setInterval(() => this.tick(), 1000);
     },
     setSt(st, why) { this.st = st; this.why = why || ""; updateUi(); },
+    async onHist(d) {
+      if (!d.length) { histForget(); histChanged(); return; } // vom Modul gelöscht (Recht entzogen, Verlauf aus)
+      if (d.length < 42 || d[0] !== 1 || d[1] !== 4 || hexOf(d.slice(2, 6)) !== hexOf(this.kid)) return;
+      const p = await unseal(this.khKey, d);
+      histShared(JSON.parse(td.decode(p)));
+    },
     hello() {
       clearTimeout(this.helloTimer);
       if (!this.mqtt || !this.mqtt.alive || this.st === "refused") return;
@@ -1054,7 +1112,10 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       else if (m.t === "badcode") { if (may(P.admin)) toast("Falscher Anmelde-Code von „" + m.n + "“" + (m.wait ? " – Anmeldung " + fmtWait(m.wait) + " gesperrt" : ""), true); }
       else if (m.t === "me") setMe(m);
       else if (m.t === "bye") showLock(m.why);
-      else if (m.t === "loc") { if (may(P.loc)) loadLocation(false); }
+      else if (m.t === "loc") {
+        if (may(P.loc)) loadLocation(false);
+        if (may(P.loc) && $("locSheet").classList.contains("open") && Date.now() - histFetched > 20000) loadHist();
+      }
       else if (m.t === "devs") { if ($("sheet").classList.contains("open") && !$("devBox").hidden) loadDevices(); }
       else if (m.t === "deny") toast(DENY[m.w] || "Dafür fehlt diesem Gerät die Berechtigung.", true);
       else if (m.t === "off") {
@@ -1200,9 +1261,9 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     });
     if (!may(P.admin)) $("fwSection").hidden = true;
     $("rmtSec").hidden = !(may(P.admin) ? rmtAvail : me.rmt && may(P.remote));
-    $("locBtn").hidden = !may(P.loc);
-    if (!may(P.loc)) {
-      locData = null; $("locForm").hidden = true; locStore(null);
+    updateLocBtn();
+    if (!may(P.loc) && me.at) { // Recht weg (Rolle vom Modul bekannt): auch auf dem Handy nichts aufheben
+      locData = null; $("locForm").hidden = true; locStore(null); histForget();
       if ($("locSheet").classList.contains("open")) closeSheets();
     }
     if ((!may(P.files) && $("fileSheet").classList.contains("open")) || (!may(P.cards) && $("cardSheet").classList.contains("open"))) closeSheets();
@@ -1331,7 +1392,8 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     const lines = [];
     if (stats) {
       const toReset = j.reset ? j.reset - Date.now() / 1000 : -1;
-      if (!j.auto) lines.push("Automatisch: aus – nur auf Knopfdruck");
+      if (j.hist) lines.push("Verlauf: sucht alle 5 Min" + (j.next >= 0 ? " · nächste Suche in " + fmtIn(j.next) : "") + " · fragt Google nur an neuen Orten");
+      else if (!j.auto) lines.push("Automatisch: aus – nur auf Knopfdruck");
       else if (!j.clock) lines.push("Automatisch alle " + j.auto + " Min – startet, sobald das Modul die Uhrzeit kennt (öffnet ein Handy die App, stellt es sie)");
       else if (j.next >= 0 && toReset > 0 && Math.abs(toReset - j.next) < 120)
         lines.push("Automatisch: Pause bis " + fmtClock(j.reset) + " Uhr (nur noch die Rücklage für „Jetzt orten“ übrig)");
@@ -1381,8 +1443,11 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     locShowStored();
     openSheetEl("locSheet");
     renderLocation();
+    renderHist();
     locTicker();
     await loadLocation(false);
+    renderHist();
+    if (locData && !locFromStore && locData.hist) loadHist();
     const j = locData || {};
     if (j.on && !hasFix(j) && j.connected && j.manual !== false && !j.why) loadLocation(true);
   });
@@ -1417,6 +1482,295 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       if (j.ok) { toast("Gespeicherter Ort gelöscht"); loadLocation(true); }
       else $("locMsg").textContent = j.error || "Löschen fehlgeschlagen.";
     } catch (e) {}
+  });
+
+  /* ---------- Standortverlauf ----------
+     Das Modul merkt sich alle 5 Minuten, wo es ist (WLANs + Uhrzeit, auch ohne Internet), und löst
+     neue Orte über Google auf, sobald es Internet hat. Die App holt den Verlauf seitenweise ab
+     (/api/hist) und hebt ihn im Browser auf (localStorage) – so ist er auch ohne Verbindung zum
+     Modul zu sehen. Im Fern-Modus kommt er außerdem als verschlüsselte, beim Vermittler gespeicherte
+     Nachricht, auch wenn das Modul gerade nicht online ist (Rem.onHist).
+     Eintrag: [t0, t1, st, Breite × 1e6, Länge × 1e6, Genauigkeit in m]; st: 0 = Ort noch offen,
+     1 = Ort bekannt, 2 = Google kennt die WLANs dort nicht. */
+  const HIST_KEY = "fr-hist", HIST_SHOW = 60;
+  let hist = histRestore(), histBusy = false, histAgain = false, histRange = "24h", histSel = -1, histZoom = 0, histFetched = 0, histMore = false, histClearArm = 0;
+  function histRestore() {
+    try {
+      const h = JSON.parse(localStorage.getItem(HIST_KEY) || "null");
+      if (h && Array.isArray(h.r))
+        return {r: h.r.filter(x => Array.isArray(x) && x.length >= 6 && x.every(v => typeof v === "number")), mod: +h.mod || 0, shared: +h.shared || 0, sopen: +h.sopen || 0};
+    } catch (e) {}
+    return {r: [], mod: 0, shared: 0, sopen: 0};
+  }
+  function histSave() {
+    try {
+      if (!hist.r.length && !hist.mod && !hist.shared) localStorage.removeItem(HIST_KEY);
+      else localStorage.setItem(HIST_KEY, JSON.stringify(hist));
+    } catch (e) {}
+  }
+  function histForget() { hist = {r: [], mod: 0, shared: 0, sopen: 0}; histSave(); }
+  const histHas = () => hist.r.length > 0;
+  // Einträge einer Quelle für den Zeitraum [from, to] übernehmen: Was sie dort hat, ersetzt das
+  // Gespeicherte. keepOther: Einträge ohne Ort behalten (geteilt wird nur, was einen Ort hat).
+  function histApply(recs, from, to, keepOther) {
+    const keep = hist.r.filter(x => x[1] < from || x[0] > to || (keepOther && x[2] !== 1));
+    const byT0 = new Map(keep.map(x => [x[0], x]));
+    for (const x of recs) byT0.set(x[0], x);
+    hist.r = Array.from(byT0.values()).sort((a, b) => a[0] - b[0]);
+    if (hist.r.length > 4000) hist.r = hist.r.slice(-4000);
+  }
+  // Geteilter Verlauf (Fern-Modus): {"v":1,"at":…,"open":…,"r":[[t0,t1,lat,lng,acc],…]}
+  function histShared(j) {
+    if (!j || j.v !== 1 || !Array.isArray(j.r) || typeof j.at !== "number") return;
+    if (j.at && j.at * 1000 < hist.shared) return; // älter als das, was wir schon haben
+    const recs = j.r.filter(x => Array.isArray(x) && x.length >= 5 && x.every(v => typeof v === "number")).map(x => [x[0], x[1], 1, x[2], x[3], x[4]]);
+    const to = j.at || (recs.length ? recs[recs.length - 1][1] : 0);
+    histApply(recs, j.at ? j.at - 14 * 86400 : (recs.length ? recs[0][0] : to), to, true);
+    hist.shared = (j.at || Math.floor(Date.now() / 1000)) * 1000;
+    hist.sopen = +j.open || 0;
+    histSave();
+    histChanged();
+  }
+  function histChanged() {
+    updateLocBtn();
+    if ($("locSheet").classList.contains("open")) renderHist();
+  }
+  function updateLocBtn() {
+    // Ohne Verbindung (Rolle unbekannt) trotzdem zeigen, wenn das Handy einen Verlauf aufhebt
+    $("locBtn").hidden = !(may(P.loc) || (!me.at && histHas()));
+  }
+  function parseLocal(v) {
+    const m = /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d)/.exec(v || "");
+    return m ? Math.floor(new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5]).getTime() / 1000) : 0;
+  }
+  function toLocalInput(unix) {
+    const d = new Date(unix * 1000), p = (n) => String(n).padStart(2, "0");
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + "T" + p(d.getHours()) + ":" + p(d.getMinutes());
+  }
+  function histWindow() {
+    const now = Math.floor(Date.now() / 1000), soon = now + 900;
+    if (histRange === "3h") return [now - 3 * 3600, soon];
+    if (histRange === "today") { const d = new Date(); d.setHours(0, 0, 0, 0); return [Math.floor(d.getTime() / 1000), soon]; }
+    if (histRange === "24h") return [now - 86400, soon];
+    if (histRange === "7d") return [now - 7 * 86400, soon];
+    if (histRange === "custom") {
+      const a = parseLocal($("histFrom").value), b = parseLocal($("histTo").value);
+      return [a || now - 86400, b ? b + 59 : soon];
+    }
+    return [0, 4294967295];
+  }
+  async function loadHist() {
+    if (histBusy) { histAgain = true; return; }
+    histBusy = true;
+    try {
+      const [from, to] = histWindow(), got = [];
+      let k = 0, j = null;
+      for (let page = 0; page < 60 && k >= 0; page++) {
+        const r = await fetch("/api/hist?from=" + from + "&to=" + to + "&k=" + k, {cache: "no-store"});
+        if (!r.ok) throw 0;
+        j = await r.json();
+        if (!j.ok || !may(P.loc)) throw 0; // Recht unterwegs entzogen: nichts übernehmen
+        if (Array.isArray(j.r)) got.push(...j.r);
+        k = typeof j.k === "number" ? j.k : -1;
+        if (!j.on) break;
+      }
+      if (j && j.on) {
+        // Was das Modul nicht mehr hat (älter als sein ältester Eintrag), bleibt auf dem Handy
+        histApply(got.filter(x => Array.isArray(x) && x.length >= 6), Math.max(from, j.old || 0), to, false);
+        hist.mod = Date.now();
+        histSave();
+      }
+      histFetched = Date.now();
+    } catch (e) {}
+    histBusy = false;
+    if (histAgain) { histAgain = false; return loadHist(); }
+    histChanged();
+  }
+  function distM(aLat, aLng, bLat, bLng) {
+    const r = Math.PI / 180, dLat = (bLat - aLat) * r, dLng = (bLng - aLng) * r;
+    const x = Math.sin(dLat / 2) ** 2 + Math.cos(aLat * r) * Math.cos(bLat * r) * Math.sin(dLng / 2) ** 2;
+    return 12742000 * Math.asin(Math.min(1, Math.sqrt(x)));
+  }
+  // Aufeinanderfolgende Einträge am selben Ort zu einem Aufenthalt zusammenfassen
+  function histStays(from, to) {
+    const out = [];
+    for (const x of hist.r) {
+      if (x[1] < from || x[0] > to) continue;
+      const st = x[2], lat = x[3] / 1e6, lng = x[4] / 1e6, acc = x[5] || 0, last = out[out.length - 1];
+      if (last && last.st === st && x[0] - last.t1 <= 3 * 3600 &&
+          (st !== 1 || distM(last.lat, last.lng, lat, lng) <= Math.max(100, Math.min(300, Math.max(last.acc, acc))))) {
+        last.t1 = Math.max(last.t1, x[1]); last.n++;
+        if (st === 1 && acc && acc < last.acc) { last.lat = lat; last.lng = lng; last.acc = acc; } // die genaueste Angabe
+        continue;
+      }
+      out.push({t0: x[0], t1: x[1], st, lat, lng, acc, n: 1});
+    }
+    return out;
+  }
+  function fmtDay(unix) {
+    const d = new Date(unix * 1000), t = new Date();
+    const diff = Math.round((new Date(t.getFullYear(), t.getMonth(), t.getDate()) - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 864e5);
+    if (diff === 0) return "Heute";
+    if (diff === 1) return "Gestern";
+    const o = {weekday: "short", day: "numeric", month: "numeric"};
+    if (d.getFullYear() !== t.getFullYear()) o.year = "numeric";
+    return d.toLocaleDateString("de-DE", o);
+  }
+  const sameDay = (a, b) => new Date(a * 1000).toDateString() === new Date(b * 1000).toDateString();
+  function fmtSpan(x) {
+    const a = fmtClock(x.t0), d = x.t1 - x.t0;
+    if (d < 120) return a + " Uhr";
+    const b = sameDay(x.t0, x.t1) ? fmtClock(x.t1) : fmtDay(x.t1) + " " + fmtClock(x.t1);
+    return a + " – " + b + " (" + fmtLeft(d) + ")";
+  }
+  const mapLink = (lat, lng) => "https://www.openstreetmap.org/?mlat=" + lat + "&mlon=" + lng + "#map=17/" + lat + "/" + lng;
+  function merc(lat, lng, z) {
+    const s = 256 * Math.pow(2, z), r = Math.PI / 180, la = Math.max(-85, Math.min(85, lat));
+    return [(lng + 180) / 360 * s, (1 - Math.log(Math.tan(Math.PI / 4 + la * r / 2)) / Math.PI) / 2 * s];
+  }
+  function renderHistMap(stays) {
+    const box = $("histMap"), W = box.clientWidth || 320, H = box.clientHeight || 240;
+    const pts = stays.map((x, i) => Object.assign({i}, x)).filter(x => x.st === 1);
+    const tiles = $("histTiles"), svg = $("histSvg");
+    tiles.textContent = ""; svg.innerHTML = "";
+    $("histAttr").hidden = true;
+    $("histEmpty").hidden = pts.length > 0;
+    $("histZin").parentNode.hidden = !pts.length;
+    if (!pts.length) {
+      $("histEmpty").textContent = !histHas() ? "Noch kein Verlauf" : stays.length ? "In diesem Zeitraum noch kein Ort aufgelöst" : "In diesem Zeitraum war nichts";
+      return;
+    }
+    let z = 16;
+    if (pts.length > 1) {
+      for (z = 17; z > 2; z--) {
+        const p = pts.map(x => merc(x.lat, x.lng, z)), xs = p.map(q => q[0]), ys = p.map(q => q[1]);
+        if (Math.max(...xs) - Math.min(...xs) <= W - 56 && Math.max(...ys) - Math.min(...ys) <= H - 56) break;
+      }
+    }
+    z = Math.max(2, Math.min(18, z + histZoom));
+    const p = pts.map(x => merc(x.lat, x.lng, z)), xs = p.map(q => q[0]), ys = p.map(q => q[1]);
+    const sel = pts.findIndex(x => x.i === histSel);
+    const cx = sel >= 0 && histZoom > 0 ? p[sel][0] : (Math.max(...xs) + Math.min(...xs)) / 2;
+    const cy = sel >= 0 && histZoom > 0 ? p[sel][1] : (Math.max(...ys) + Math.min(...ys)) / 2;
+    const ox = cx - W / 2, oy = cy - H / 2, n = Math.pow(2, z);
+    // Kartenkacheln von OpenStreetMap (ohne Internet bleibt nur die Skizze)
+    for (let ty = Math.floor(oy / 256); ty <= Math.floor((oy + H) / 256); ty++) {
+      if (ty < 0 || ty >= n) continue;
+      for (let tx = Math.floor(ox / 256); tx <= Math.floor((ox + W) / 256); tx++) {
+        const img = new Image();
+        img.alt = "";
+        img.style.left = Math.round(tx * 256 - ox) + "px"; img.style.top = Math.round(ty * 256 - oy) + "px";
+        img.onload = () => { $("histAttr").hidden = false; };
+        img.onerror = () => img.remove();
+        img.src = "https://tile.openstreetmap.org/" + z + "/" + (((tx % n) + n) % n) + "/" + ty + ".png";
+        tiles.appendChild(img);
+      }
+    }
+    const q = p.map(v => [(v[0] - ox).toFixed(1), (v[1] - oy).toFixed(1)]);
+    let g = "";
+    if (q.length > 1) g += '<polyline points="' + q.map(v => v.join(",")).join(" ") + '" fill="none" stroke="#ff8a1f" stroke-opacity=".55" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>';
+    pts.forEach((x, k) => {
+      const mpp = 156543.03 * Math.cos(x.lat * Math.PI / 180) / n, ra = x.acc / mpp;
+      if (ra > 7 && ra < W) g += '<circle cx="' + q[k][0] + '" cy="' + q[k][1] + '" r="' + ra.toFixed(1) + '" fill="#ff8a1f" fill-opacity=".12" stroke="#ff8a1f" stroke-opacity=".35"/>';
+    });
+    pts.forEach((x, k) => {
+      const on = x.i === histSel, last = k === pts.length - 1;
+      g += '<circle data-i="' + x.i + '" cx="' + q[k][0] + '" cy="' + q[k][1] + '" r="' + (on ? 9 : last ? 7 : 5.5) + '" fill="' + (last ? "#ff8a1f" : "#f4eee7") +
+        '" stroke="' + (on ? "#ff8a1f" : "#141210") + '" stroke-width="' + (on ? 3 : 2) + '" style="cursor:pointer"/>';
+    });
+    svg.innerHTML = g;
+  }
+  function renderHist() {
+    const j = locData || {}, fresh = !!locData && !locFromStore;
+    const show = (fresh && j.hist) || histHas() || (fresh && j.hist === false && histHas());
+    $("histBox").hidden = !show;
+    if (!show) return;
+    document.querySelectorAll("#histSeg button").forEach(b => b.classList.toggle("on", b.dataset.r === histRange));
+    $("histRange").hidden = histRange !== "custom";
+    const [from, to] = histWindow(), stays = histStays(from, to);
+    // Stand
+    const src = [];
+    if (hist.mod && (!hist.shared || hist.mod >= hist.shared)) src.push(Date.now() - hist.mod < 90000 ? "vom Modul, gerade eben" : "vom Modul, " + fmtAgo(Date.now() - hist.mod));
+    else if (hist.shared) src.push("übers Internet geteilt, " + fmtAgo(Math.max(0, Date.now() - hist.shared)));
+    $("histSrc").textContent = src.join("") + (histBusy ? " · lädt…" : "");
+    // Zusammenfassung
+    const lines = [], ok = stays.filter(x => x.st === 1).length, open = stays.filter(x => x.st === 0).reduce((a, x) => a + x.n, 0);
+    lines.push(stays.length ? ok + (ok === 1 ? " Ort" : " Orte") + " im Zeitraum" + (open ? " · " + open + " noch offen" : "") : "");
+    if (fresh && j.hist === false) lines.push("Der Verlauf ist am Modul aus" + (may(P.admin) ? " – einschalten unter ⚙️ → „Standort des Moduls“." : "."));
+    else if (fresh && j.hist) {
+      let m = "Modul: " + fmtNum(j.hc || 0) + " von " + fmtNum(j.hcap || 0) + " Plätzen belegt" + (j.hf ? "" : " (nur bis zum Neustart – dieses Board hat dafür keinen Flash-Bereich)");
+      if (j.hold) m += " · seit " + new Date(j.hold * 1000).toLocaleDateString("de-DE", {day: "numeric", month: "numeric", year: "2-digit"});
+      lines.push(m);
+      if (j.ho) lines.push(j.ho + (j.ho === 1 ? " Ort wartet" : " Orte warten") + (j.hg ? " auf Internet bzw. Google (Tagesgrenze)" : " – zum Auflösen ist Google nötig (⚙️ → Standort)"));
+      else if (!j.hg) lines.push("Zum Auflösen der Orte ist Google nötig (⚙️ → Standort des Moduls).");
+      if (j.hp) lines.push(j.hp + " Suchen warten auf die Uhrzeit (kommt vom Handy oder vom Flipper)");
+    } else if (hist.shared && hist.sopen) lines.push(hist.sopen + (hist.sopen === 1 ? " Ort wartete" : " Orte warteten") + " beim letzten Teilen noch auf Google");
+    $("histSum").textContent = lines.filter(Boolean).join("\n");
+    renderHistMap(stays);
+    // Liste: neueste zuerst, nach Tagen
+    const list = $("histList"), items = stays.map((x, i) => Object.assign({i}, x)).reverse();
+    let html = "", day = "";
+    const shown = histMore ? items : items.slice(0, HIST_SHOW);
+    for (const x of shown) {
+      const d = fmtDay(x.t0);
+      if (d !== day) { day = d; html += '<div class="hist-day">' + esc(d) + "</div>"; }
+      let where;
+      if (x.st === 1) where = fix5(x.lat) + ", " + fix5(x.lng) + (x.acc ? " · ±" + x.acc + " m" : "");
+      else if (x.st === 0) where = "Ort noch offen" + (x.n > 1 ? " (" + x.n + " Orte)" : "") + " – wird aufgelöst, sobald das Modul Internet hat";
+      else where = "Google kennt die WLANs dort nicht";
+      html += '<div class="hist-item' + (x.i === histSel ? " sel" : "") + '" data-i="' + x.i + '" role="button" tabindex="0"><span class="hdot' + (x.st === 0 ? " open" : x.st === 2 ? " none" : "") +
+        '"></span><span class="htxt"><span class="htime">' + esc(fmtSpan(x)) + '</span><br><span class="hwhere">' + esc(where) + "</span></span>" +
+        (x.st === 1 ? '<a href="' + esc(mapLink(fix5(x.lat), fix5(x.lng))) + '" target="_blank" rel="noopener noreferrer">Karte</a>' : "") + "</div>";
+    }
+    if (!histMore && items.length > HIST_SHOW) html += '<button class="hist-more" type="button" id="histMoreBtn">Alle ' + items.length + " zeigen</button>";
+    if (!items.length) html = '<p class="note">' + (histHas() ? "In diesem Zeitraum gibt es keine Einträge." : "Noch kein Verlauf – das Modul sucht alle 5 Minuten.") + "</p>";
+    list.innerHTML = html;
+    $("histClear").hidden = !(may(P.admin) && fresh && j.hist && wsOpen);
+    if (Date.now() > histClearArm) $("histClear").textContent = "Verlauf löschen";
+  }
+  $("histSeg").addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    haptic();
+    histRange = b.dataset.r; histSel = -1; histZoom = 0; histMore = false;
+    if (histRange === "custom" && !$("histFrom").value) {
+      const now = Math.floor(Date.now() / 1000);
+      $("histFrom").value = toLocalInput(now - 86400); $("histTo").value = toLocalInput(now);
+    }
+    renderHist();
+    loadHist();
+  });
+  ["histFrom", "histTo"].forEach(id => $(id).addEventListener("change", () => { histSel = -1; histZoom = 0; renderHist(); loadHist(); }));
+  $("histZin").addEventListener("click", () => { histZoom = Math.min(histZoom + 1, 8); renderHist(); });
+  $("histZout").addEventListener("click", () => { histZoom = Math.max(histZoom - 1, -8); renderHist(); });
+  $("histList").addEventListener("click", (e) => {
+    if (e.target.closest("a")) return;
+    if (e.target.id === "histMoreBtn") { histMore = true; renderHist(); return; }
+    const it = e.target.closest(".hist-item");
+    if (!it) return;
+    const i = +it.dataset.i;
+    histSel = histSel === i ? -1 : i;
+    renderHist();
+    if (histSel >= 0) $("histMap").scrollIntoView({block: "nearest", behavior: "smooth"});
+  });
+  $("histSvg").addEventListener("click", (e) => {
+    const c = e.target.closest("circle[data-i]");
+    if (!c) return;
+    histSel = +c.dataset.i;
+    renderHist();
+    const it = document.querySelector('.hist-item[data-i="' + histSel + '"]');
+    if (it) it.scrollIntoView({block: "nearest", behavior: "smooth"});
+  });
+  $("histClear").addEventListener("click", async () => {
+    if (Date.now() > histClearArm) { histClearArm = Date.now() + 4000; $("histClear").textContent = "Wirklich löschen? Nochmal tippen"; return; }
+    histClearArm = 0;
+    try {
+      await postJson("/api/hist", {clear: true});
+      histForget();
+      toast("Verlauf gelöscht");
+      await loadLocation(false);
+      loadHist();
+    } catch (e) { toast(e.message || "Löschen fehlgeschlagen", true); }
   });
 
   /* Fern-Modus: Koppeln und „kein Zugriff“ */
@@ -2662,12 +3016,18 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     $("rmtDevField").hidden = !may(P.admin) || !j.remote_on;
   }
   function updateLocUi() {
-    const on = $("fLocOn").checked, svc = $("fLocSvc").value;
+    const on = $("fLocOn").checked, svc = $("fLocSvc").value, hist = $("fLocHist").checked;
     $("locCfg").hidden = !on;
     $("locKeyField").hidden = svc !== "1";
     $("locUrlField").hidden = svc !== "2";
+    $("locAutoField").hidden = hist; // mit Verlauf sucht das Modul ohnehin alle 5 Minuten
+    const notes = [];
+    if (hist && svc !== "1") notes.push("Für den Verlauf löst das Modul Orte nur über Google auf. Ohne Google merkt es sich die WLANs mit Uhrzeit, zeigt aber keine Orte.");
+    if (hist && !$("fRemote").checked) notes.push("Ohne Fernzugriff übers Internet teilt das Modul den Verlauf nur, wenn ein Handy verbunden ist.");
+    $("locHistNote").textContent = notes.join(" ");
+    $("locHistNote").hidden = !notes.length;
   }
-  ["fLocOn", "fLocSvc"].forEach(id => $(id).addEventListener("change", updateLocUi));
+  ["fLocOn", "fLocSvc", "fLocHist", "fRemote"].forEach(id => $(id).addEventListener("change", updateLocUi));
   ["fRemote", "fBroker"].forEach(id => $(id).addEventListener("change", updateRemoteUi));
   // Offene WLANs und Fernzugriff brauchen die Geräte-Sperre: gleich mit einschalten
   ["fOpenAuto", "fRemote"].forEach(id => $(id).addEventListener("change", e => {
@@ -2895,6 +3255,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       $("fLocSvc").value = String(j.loc_service == null ? 0 : j.loc_service);
       $("fLocKey").value = j.loc_key || ""; $("fLocUrl").value = j.loc_url || "";
       $("fLocAuto").value = String(j.loc_auto == null ? 5 : j.loc_auto);
+      $("fLocHist").checked = j.loc_hist !== false;
       $("fLocDay").value = j.loc_day == null ? 300 : j.loc_day; $("fLocMonth").value = j.loc_month == null ? 10000 : j.loc_month;
       updateLocUi();
       $("rmtLinkBox").hidden = true;
@@ -2969,6 +3330,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     body.loc_key = $("fLocKey").value.trim();
     body.loc_url = $("fLocUrl").value.trim();
     body.loc_auto = Number($("fLocAuto").value);
+    body.loc_hist = $("fLocHist").checked;
     body.loc_day = Math.round(Number($("fLocDay").value));
     body.loc_month = Math.round(Number($("fLocMonth").value));
     if (!(body.loc_day >= 10 && body.loc_day <= 10000)) return msg("Standort: höchstens pro Tag 10 bis 10.000 Abfragen.", "err");

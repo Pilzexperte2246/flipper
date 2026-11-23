@@ -289,6 +289,7 @@ svg{display:block}
 .lockcard{width:100%;max-width:420px}
 .lockicon{width:56px;height:56px;border-radius:16px;background:var(--surface);display:grid;place-items:center;color:var(--accent);margin-bottom:16px}
 .lockcard h2{font-size:22px;margin-bottom:8px}
+.lock.nologin .field,.lock.nologin #lockGo{display:none}
 .lockcard p.note{font-size:14px;color:var(--muted);line-height:1.45;margin-bottom:18px}
 .lockcard .formmsg{font-size:14px;line-height:1.45;margin-top:12px}
 
@@ -729,7 +730,7 @@ svg{display:block}
   <div style="height:12px"></div>
   <div>
     <div class="field"><label for="fSleepMode">Wenn niemand die App nutzt</label>
-      <select id="fSleepMode"><option value="0">Modul bleibt wach</option><option value="3">Bereitschaft – sofort erreichbar</option><option value="4">Aus – Bluetooth am Flipper weckt</option><option value="1">schlafen, regelmäßig kurz aufwachen</option><option value="2">tief schlafen (nur RESET weckt)</option></select></div>
+      <select id="fSleepMode"><option value="0">Modul bleibt wach</option><option value="3">Bereitschaft – sofort erreichbar</option><option value="5">Nur übers Internet erreichbar</option><option value="4">Aus – Bluetooth am Flipper weckt</option><option value="1">schlafen, regelmäßig kurz aufwachen</option><option value="2">tief schlafen (nur RESET weckt)</option></select></div>
     <div class="field" id="sleepAfterField"><label for="fSleepAfter">Schlafen nach</label>
       <select id="fSleepAfter"><option value="5">5 Minuten</option><option value="15">15 Minuten</option><option value="30">30 Minuten</option><option value="60">60 Minuten</option></select></div>
   </div>
@@ -740,6 +741,21 @@ svg{display:block}
       <div class="unitrow"><input id="fWakeWin" type="number" inputmode="numeric" min="10" max="300" step="1"><span>Sek.</span></div></div>
   </div>
   <p class="note" id="sleepNote"></p>
+  <div id="sbFields">
+    <div class="field" style="margin-top:10px"><label for="fStandbyWait">Eigenes WLAN aus nach</label>
+      <select id="fStandbyWait"><option value="10">10 Sekunden ohne Nutzung</option><option value="30">30 Sekunden ohne Nutzung</option><option value="60">1 Minute ohne Nutzung</option><option value="120">2 Minuten ohne Nutzung</option><option value="300">5 Minuten ohne Nutzung</option><option value="600">10 Minuten ohne Nutzung</option></select></div>
+    <div class="toggle"><div>Bluetooth am Flipper weckt<small>Verbindet sich ein Handy per Bluetooth mit dem Flipper (Flipper-App öffnen), ist das WLAN des Moduls sofort wieder da. Dafür ruht im Schlaf die Verbindung zum Flipper, und das Modul liest seine Meldungen mit (wie bei „Aus“).</small></div><input type="checkbox" id="fSleepBt"></div>
+    <div class="toggle" id="sleepLanRow"><div>Im Heim-WLAN sperren<small>Das Modul ist dann wirklich nur übers Internet erreichbar – im Heim-WLAN bzw. Hotspot gar nicht, auch nicht für freigegebene Geräte. Das WLAN des Moduls geht weiterhin (wenn es an ist).</small></div><input type="checkbox" id="fSleepLan"></div>
+  </div>
+  <div class="toggle"><div>Zeitplan<small>In einem Zeitfenster gilt ein anderer Schlafmodus – z. B. nachts tief schlafen, tagsüber übers Internet erreichbar.</small></div><input type="checkbox" id="fPlanOn"></div>
+  <div id="planFields">
+    <div class="row" style="margin-top:10px">
+      <div class="field"><label for="fPlanFrom">Von</label><input type="time" id="fPlanFrom" step="60"></div>
+      <div class="field"><label for="fPlanTo">bis</label><input type="time" id="fPlanTo" step="60"></div>
+    </div>
+    <div class="field"><label for="fPlanMode">In dieser Zeit</label><select id="fPlanMode"><option value="0">Modul bleibt wach</option><option value="3">Bereitschaft – sofort erreichbar</option><option value="5">Nur übers Internet erreichbar</option><option value="4">Aus – Bluetooth am Flipper weckt</option><option value="1">schlafen, regelmäßig kurz aufwachen</option><option value="2">tief schlafen (nur RESET weckt)</option></select></div>
+    <p class="note" id="planNote"></p>
+  </div>
   <div class="toggle"><div>Bei schwachem Flipper-Akku aus<small>Das Modul geht ganz aus und bleibt aus – auch Bluetooth weckt es dann nicht mehr. Lädt der Flipper, geht es von selbst wieder an.</small></div><input type="checkbox" id="fLowBat"></div>
   <div class="field" id="lowBatField" style="margin-top:10px"><label for="fLowBatLevel">Ausschalten bei</label>
     <select id="fLowBatLevel"><option value="5">5 % oder weniger</option><option value="10">10 % oder weniger</option><option value="15">15 % oder weniger</option><option value="20">20 % oder weniger</option><option value="25">25 % oder weniger</option><option value="30">30 % oder weniger</option></select></div>
@@ -1175,7 +1191,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     try { const r = await fetch("/api/me?t=" + nowSec(), {cache: "no-store", signal: c.signal}); return await r.json(); }
     catch (e) { return null; } finally { clearTimeout(t); }
   }
-  const lockWhy = (w) => w.exp ? "exp" : w.gone ? "gone" : "";
+  const lockWhy = (w) => w.lan ? "lan" : w.exp ? "exp" : w.gone ? "gone" : "";
   async function retryOrLock() {
     const w = await whoami();
     if (w && w.lock && !w.allowed) return REMOTE ? showRemoteBox(w.exp ? "exp" : w.gone ? "gone" : "perm") : showLock(lockWhy(w));
@@ -1196,11 +1212,13 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     exp: ["Zeit abgelaufen", "Der Zugang dieses Geräts war zeitlich begrenzt und ist jetzt abgelaufen. Mit einem neuen Anmelde-Code bist du wieder drin."],
     rm: ["Zugang entfernt", "Dieses Gerät wurde aus der Liste der freigegebenen Geräte entfernt. Mit einem neuen Anmelde-Code bist du wieder drin."],
     gone: ["Zugang beendet", "Dieses Gerät war freigegeben, ist es aber nicht mehr – es wurde entfernt oder seine Zeit ist abgelaufen. Melde dich einfach neu mit einem Anmelde-Code an."],
+    lan: ["Nur übers Internet", "Das Modul ist auf „Nur übers Internet erreichbar“ gestellt und im Heim-WLAN gesperrt. Öffne die Fernbedienungs-Seite im Internet (dein Kopplungslink) – oder verbinde dich mit dem WLAN des Moduls: Das ist an, solange das Modul kein Internet hat, und auf Wunsch auch, sobald sich dein Handy per Bluetooth mit dem Flipper verbindet."],
   };
   function showLock(why) {
     if (REMOTE) return showRemoteBox(why === "exp" ? "exp" : why === "rm" ? "gone" : "perm");
     const t = LOCK_TXT[why || ""] || LOCK_TXT[""];
     $("lockTitle").textContent = t[0]; $("lockText").textContent = t[1];
+    $("lock").classList.toggle("nologin", why === "lan"); // gesperrt: Anmelden hilft nicht
     locked = true;
     clearTimeout(retryTimer);
     if (ws) { const old = ws; ws = null; wsOpen = false; try { old.close(); } catch (e) {} }
@@ -3189,10 +3207,25 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       return "Für die Bereitschaft muss das Modul mit einem gespeicherten WLAN verbunden sein: Trag oben unter „Heim-WLAN oder iPhone-Hotspot“ dein WLAN oder den Hotspot deines iPhones ein (offene WLANs zählen nicht).";
     return "";
   }
+  function inetCheck() {
+    if (!rmtAvail || !$("fRemote").checked)
+      return "„Nur übers Internet erreichbar“ braucht den Fernzugriff übers Internet: oben unter „Fernzugriff übers Internet“ einschalten.";
+    if (!$("fStaOn").checked || (!netNames().length && !$("fOpenAuto").checked))
+      return "„Nur übers Internet erreichbar“ braucht ein WLAN mit Internet: oben unter „Heim-WLAN oder iPhone-Hotspot“ eins eintragen (oder „Offene WLANs nutzen“ einschalten).";
+    return "";
+  }
+  const MODE_NAMES = {0: "Modul bleibt wach", 1: "schlafen, regelmäßig aufwachen", 2: "tief schlafen", 3: "Bereitschaft", 4: "Aus – Bluetooth weckt", 5: "Nur übers Internet"};
+  let modeNow = -1;
   function updateSleepNote() {
     const m = Number($("fSleepMode").value), a = $("fSleepAfter").value;
+    const planOn = $("fPlanOn").checked, pm = Number($("fPlanMode").value), wait = Number($("fStandbyWait").value);
+    const net35 = (x) => x === 3 || x === 5;
+    $("sbFields").hidden = !(net35(m) || (planOn && net35(pm)));
+    $("sleepLanRow").hidden = !(m === 5 || (planOn && pm === 5));
+    $("planFields").hidden = !planOn;
+    const waitTxt = wait < 60 ? wait + " Sekunden" : wait === 60 ? "1 Minute" : wait / 60 + " Minuten";
     $("fSleepAfter").disabled = m === 0;
-    $("sleepAfterField").hidden = m === 3;
+    $("sleepAfterField").hidden = m === 3 || m === 5;
     $("sleepAfterField").querySelector("label").textContent = m === 4 ? "Ausschalten nach" : "Schlafen nach";
     $("wakeFields").hidden = m !== 1;
     let t;
@@ -3204,9 +3237,14 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     else if (m === 3) {
       const host = ($("fHost").value.trim().toLowerCase() || "flipper"), names = netNames();
       const net = netPref && names.includes(netPref) ? netPref : names.join("“ oder „");
-      t = standbyCheck() || "Nutzt 30 Sekunden lang niemand die App und ist kein Handy mit dem WLAN des Moduls verbunden, schaltet das Modul sein eigenes WLAN ab und bleibt nur mit „" + net +
+      t = standbyCheck() || "Nutzt " + waitTxt + " lang niemand die App und ist kein Handy mit dem WLAN des Moduls verbunden, schaltet das Modul sein eigenes WLAN ab und bleibt nur mit „" + net +
         "“ verbunden. Funk und Chip schlafen dabei zwischen den Signalen des Routers bzw. Hotspots – das spart viel Strom, trotzdem ist das Modul jederzeit sofort da: einfach http://" +
         host + ".local öffnen (iPhone im selben WLAN bzw. Hotspot an). Ist „" + net + "“ nicht erreichbar (oder hängt das Modul nur in einem offenen WLAN), schaltet sich nach 15 Sekunden das eigene WLAN wieder ein. Notfalls RESET drücken und innerhalb von 30 Sekunden dem WLAN des Moduls beitreten: Solange du verbunden bist, bleibt es an. LED: aus, kurz weiß alle 8 Sekunden.";
+    }
+    else if (m === 5) {
+      const names = netNames(), net = names.length ? "„" + names.join("“ oder „") + "“" + ($("fOpenAuto").checked ? " oder ein offenes WLAN" : "") : "ein offenes WLAN";
+      t = inetCheck() || "Nutzt " + waitTxt + " lang niemand das WLAN des Moduls, schaltet es sein eigenes WLAN ab – auch wenn gerade jemand übers Internet steuert – und bleibt nur mit " + net +
+        " verbunden. Erreichbar ist es dann über die Fernbedienungs-Seite im Internet (Fernzugriff), von überall. Funk und Chip schlafen zwischen den Signalen des Routers, das spart viel Strom. Hat das WLAN kein Internet oder ist der Vermittler nicht erreichbar, ist nach 15 Sekunden das eigene WLAN wieder da – du sperrst dich also nicht aus. LED: aus, kurz weiß alle 8 Sekunden.";
     }
     else if (m === 1) {
       const e = wakeEverySec(), w = Number($("fWakeWin").value), err = wakeCheck();
@@ -3215,9 +3253,22 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
         fmtDur(Math.max(e - w, 5)) + ", bis das WLAN auftaucht. Eine laufende Karten-Emulation verhindert das Schlafen.";
     } else t = "Nach " + a + " Minuten ohne Nutzung schläft das Modul tief und verbraucht fast nichts. Aufwecken nur mit der RESET-Taste am Board (beim Devboard auch BOOT) – aus der Ferne geht es dann nicht mehr.";
     $("sleepNote").textContent = t;
-    $("sleepNote").style.color = (m === 1 && wakeCheck()) || (m === 3 && standbyCheck()) ? "var(--bad)" : "";
+    $("sleepNote").style.color = (m === 1 && wakeCheck()) || (m === 3 && standbyCheck()) || (m === 5 && inetCheck()) ? "var(--bad)" : "";
+    // Zeitplan
+    if (planOn) {
+      const f = $("fPlanFrom").value, to = $("fPlanTo").value;
+      let p = (pm === 3 && standbyCheck()) || (pm === 5 && inetCheck()) || "";
+      if (!p) {
+        p = f && to && f === to ? "„von“ und „bis“ dürfen nicht gleich sein." :
+          "Von " + (f || "?") + " bis " + (to || "?") + " Uhr gilt „" + MODE_NAMES[pm] + "“, sonst „" + MODE_NAMES[m] + "“. Gewechselt wird mit einem kurzen Neustart, sobald niemand die App nutzt. Aus „tief schlafen“, „schlafen, regelmäßig aufwachen“ und „Aus“ wacht das Modul zum Ende der Zeit von selbst auf. Die Uhrzeit hat es vom Handy oder vom Flipper." +
+          (pm === m ? " (Gleicher Modus wie sonst – der Zeitplan ändert dann nichts.)" : "");
+        if (modeNow >= 0) p += " Gerade gilt: „" + MODE_NAMES[modeNow] + "“.";
+      }
+      $("planNote").textContent = p;
+      $("planNote").style.color = (pm === 3 && standbyCheck()) || (pm === 5 && inetCheck()) || (f && f === to) ? "var(--bad)" : "";
+    }
   }
-  ["fSleepMode", "fSleepAfter", "fWakeUnit", "fStaOn"].forEach(id => $(id).addEventListener("change", updateSleepNote));
+  ["fSleepMode", "fSleepAfter", "fWakeUnit", "fStaOn", "fStandbyWait", "fPlanOn", "fPlanMode", "fPlanFrom", "fPlanTo", "fRemote", "fOpenAuto"].forEach(id => $(id).addEventListener("change", updateSleepNote));
   ["fWakeEvery", "fWakeWin", "fStaSsid", "fHost"].forEach(id => $(id).addEventListener("input", updateSleepNote));
 
   let lowBatBoot = "BOOT oder RESET";
@@ -3408,6 +3459,11 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       $("fLowPower").checked = !!j.low_power;
       $("fSleepMode").value = j.sleep_mode || 0;
       $("fSleepAfter").value = j.sleep_after || 15;
+      $("fStandbyWait").value = String(j.standby_wait || 30);
+      $("fSleepBt").checked = !!j.sleep_bt; $("fSleepLan").checked = !!j.sleep_lan;
+      $("fPlanOn").checked = !!j.plan_on; $("fPlanMode").value = String(j.plan_mode == null ? 2 : j.plan_mode);
+      $("fPlanFrom").value = minToTime(j.plan_from == null ? 1380 : j.plan_from); $("fPlanTo").value = minToTime(j.plan_to == null ? 420 : j.plan_to);
+      modeNow = typeof j.mode_now === "number" ? j.mode_now : -1;
       const every = j.wake_every || 60;
       if (every >= 120 && every % 60 === 0) { $("fWakeEvery").value = every / 60; $("fWakeUnit").value = "60"; }
       else { $("fWakeEvery").value = every; $("fWakeUnit").value = "1"; }
@@ -3467,6 +3523,8 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   $("sheetBg").addEventListener("click", closeSheet);
 
   $("saveBtn").addEventListener("click", async () => {
+    const pf = timeToMin($("fPlanFrom").value), pt = timeToMin($("fPlanTo").value);
+    if ($("fPlanOn").checked && (pf < 0 || pt < 0 || pf === pt)) return msg("Zeitplan: „von“ und „bis“ eintragen (nicht gleich).", "err");
     const body = {
       ssid: $("fSsid").value.trim(),
       channel: Number(chan.value),
@@ -3478,11 +3536,19 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       low_power: $("fLowPower").checked,
       sleep_mode: Number($("fSleepMode").value),
       sleep_after: Number($("fSleepAfter").value),
+      standby_wait: Number($("fStandbyWait").value),
+      sleep_bt: $("fSleepBt").checked,
+      sleep_lan: $("fSleepLan").checked,
+      plan_on: $("fPlanOn").checked,
+      plan_mode: Number($("fPlanMode").value),
       wake_every: wakeEverySec(),
       wake_window: Number($("fWakeWin").value),
       lowbat_off: $("fLowBat").checked,
       lowbat_level: Number($("fLowBatLevel").value),
       sta_enabled: $("fStaOn").checked,
+      plan_from: pf >= 0 ? pf : 1380,
+      plan_to: pt >= 0 ? pt : 420,
+      ...ledTz(), // Zeitzone des Handys (für den Zeitplan)
       hostname: $("fHost").value.trim().toLowerCase(),
     };
     if ($("fStaSsid").value.trim() && !addNet(true)) return; // eingetipptes, noch nicht hinzugefügtes WLAN mitnehmen

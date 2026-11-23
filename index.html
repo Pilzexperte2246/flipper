@@ -205,6 +205,20 @@ svg{display:block}
 .loc-form .row2{display:flex;gap:8px}
 .loc-form .field{margin-top:8px}
 .loc-form .loc-actions .btn{flex:1 1 42%}
+/* LED am Modul */
+.ledlist{display:flex;flex-direction:column;margin:2px 0 8px}
+.ledrow{display:grid;grid-template-columns:38px minmax(0,1fr) auto;align-items:center;column-gap:10px;row-gap:2px;padding:9px 0;border-bottom:1px solid var(--line)}
+.ledrow.nosw{grid-template-columns:minmax(0,1fr) auto}
+.ledrow .ledsw{grid-row:1/3;position:relative;width:34px;height:34px;border-radius:50%;overflow:hidden;background:#000;box-shadow:0 0 0 2px var(--surface3)}
+.ledsw i{position:absolute;inset:0;border-radius:50%}
+.ledsw input{position:absolute;inset:-10px;width:54px;height:54px;opacity:0;cursor:pointer;border:0;padding:0}
+.ledrow .ledtxt{min-width:0}
+.ledrow b{display:block;font-size:14px;font-weight:600}
+.ledrow small{display:block;font-size:12px;color:var(--muted);line-height:1.3}
+.ledpct{font:600 13px var(--mono);color:var(--muted);min-width:46px;text-align:right}
+.ledrow input[type=range]{grid-column:2/4;width:100%;height:28px;accent-color:var(--accent);margin:0}
+.ledrow.nosw input[type=range]{grid-column:1/3}
+.ledstate{font-size:13px;color:var(--muted);line-height:1.4}
 /* Standortverlauf */
 .histbox{background:var(--bg);border-radius:14px;padding:12px 12px 10px;margin-bottom:10px}
 .hist-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:8px}
@@ -730,6 +744,31 @@ svg{display:block}
   <div class="field" id="lowBatField" style="margin-top:10px"><label for="fLowBatLevel">Ausschalten bei</label>
     <select id="fLowBatLevel"><option value="5">5 % oder weniger</option><option value="10">10 % oder weniger</option><option value="15">15 % oder weniger</option><option value="20">20 % oder weniger</option><option value="25">25 % oder weniger</option><option value="30">30 % oder weniger</option></select></div>
   <p class="note" id="lowBatNote"></p>
+
+  <div id="ledSec" hidden>
+  <h3>LED am Modul</h3>
+  <div class="toggle"><div>Nachtmodus jetzt<small id="ledState" class="ledstate"></small></div><input type="checkbox" id="ledNow"></div>
+  <div class="ledlist" id="ledList"></div>
+  <p class="note">Farbkreis antippen = Farbe, Regler = Helligkeit (0 % = aus). Die LED zeigt eine Änderung ein paar Sekunden lang; sie gilt sofort, ohne Neustart.</p>
+  <div style="height:10px"></div>
+  <div class="field"><label for="ledNight">Nachtmodus</label>
+    <select id="ledNight"><option value="0">nur von Hand (Schalter oben)</option><option value="1">nach Zeitplan</option><option value="2">immer</option></select></div>
+  <div class="row" id="ledPlan">
+    <div class="field"><label for="ledFrom">Nacht ab</label><input type="time" id="ledFrom" step="60"></div>
+    <div class="field"><label for="ledTo">bis</label><input type="time" id="ledTo" step="60"></div>
+  </div>
+  <div class="ledlist">
+    <div class="ledrow nosw" data-n="np"><div class="ledtxt"><b>Nachts dauerhaft</b><small>in der Farbe des Zustands – 0 % = LED aus</small></div><span class="ledpct"></span><input type="range" min="0" max="100" step="1" id="ledNp" aria-label="Helligkeit nachts dauerhaft"></div>
+    <div class="ledrow nosw" data-n="bp"><div class="ledtxt"><b>Nachts kurz aufblitzen</b><small>so hell blitzt sie in den Abständen unten – 0 % = nie</small></div><span class="ledpct"></span><input type="range" min="0" max="100" step="1" id="ledBp" aria-label="Helligkeit nachts aufblitzen"></div>
+  </div>
+  <div class="field"><label for="ledBs">Aufblitzen alle</label>
+    <select id="ledBs"><option value="0">nie</option><option value="3">3 Sekunden</option><option value="5">5 Sekunden</option><option value="10">10 Sekunden</option><option value="15">15 Sekunden</option><option value="30">30 Sekunden</option><option value="60">1 Minute</option><option value="120">2 Minuten</option><option value="300">5 Minuten</option><option value="600">10 Minuten</option><option value="1800">30 Minuten</option><option value="3600">1 Stunde</option></select></div>
+  <div class="loc-actions">
+    <button class="btn ghost" id="ledTryNight" type="button">Nacht ansehen</button>
+    <button class="btn ghost" id="ledReset" type="button">Werkseinstellung</button>
+  </div>
+  <p class="formmsg" id="ledMsg"></p>
+  </div>
 
   <h3>Verbindung zum Flipper</h3>
   <div class="field"><label for="fBaud">Geschwindigkeit (Baud)</label>
@@ -3207,6 +3246,142 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     document.activeElement && document.activeElement.blur();
   }
 
+  /* ---------- LED am Modul ----------
+     Farbe und Helligkeit je Zustand, Nachtmodus (Zeitplan, immer oder von Hand). Alles gilt sofort:
+     Beim Ziehen zeigt die LED den Zustand zur Probe (ohne Speichern), beim Loslassen speichert das
+     Modul (POST /api/led). Nur Admin. */
+  const LED_MODES = [
+    ["search", "Sucht den Flipper", "blinkt kurz – auch gleich nach dem Start"],
+    ["hand", "Verbindet mit dem Flipper", "im Wechsel mit „sucht“"],
+    ["conn", "Mit dem Flipper verbunden", "leuchtet"],
+    ["app", "Handy hat die App offen", "leuchtet, hat Vorrang"],
+    ["err", "Verbindung unterbrochen", "kurz"],
+    ["client", "Handy kommt oder geht", "3× schnell"],
+    ["standby", "Bereitschaft", "kurzer Blitz alle 8 s"],
+    ["off", "Wird ausgeschaltet", "3×, dann aus"],
+  ];
+  let led = null, ledBusy = false, ledPending = null;
+  (function buildLedRows() {
+    $("ledList").innerHTML = LED_MODES.map(([k, n, d]) =>
+      '<div class="ledrow" data-m="' + k + '"><label class="ledsw"><i></i><input type="color" aria-label="Farbe: ' + esc(n) + '"></label>' +
+      '<div class="ledtxt"><b>' + esc(n) + "</b><small>" + esc(d) + '</small></div><span class="ledpct"></span>' +
+      '<input type="range" min="0" max="100" step="1" aria-label="Helligkeit: ' + esc(n) + '"></div>').join("");
+  })();
+  const minToTime = (m) => String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
+  const timeToMin = (v) => { const m = /^(\d\d):(\d\d)/.exec(v || ""); return m ? Math.min(1439, +m[1] * 60 + +m[2]) : -1; };
+  // Zeitzone des Handys: fester Versatz, oder Mitteleuropa-artig mit EU-Sommerzeit
+  function ledTz() {
+    const y = new Date().getFullYear(), jan = -new Date(y, 0, 1).getTimezoneOffset(), jul = -new Date(y, 6, 1).getTimezoneOffset();
+    const base = Math.min(jan, jul), eu = jul - jan === 60 && [0, 60, 120].includes(base);
+    return {tz: eu ? base : -new Date().getTimezoneOffset(), eu: eu ? 1 : 0};
+  }
+  // Farbkreis: Farbe, so hell wie eingestellt (ganz aus = dunkel mit Rand)
+  function ledSwatch(row, c, p) {
+    const i = row.querySelector(".ledsw i");
+    if (i) { i.style.background = c; i.style.opacity = p ? (0.25 + 0.75 * Math.sqrt(p / 100)).toFixed(2) : "0.08"; }
+    row.querySelector(".ledpct").textContent = p ? p + " %" : "aus";
+  }
+  function ledFromUi() {
+    const m = {};
+    document.querySelectorAll("#ledList .ledrow").forEach(r => {
+      m[r.dataset.m] = {c: r.querySelector("input[type=color]").value, p: +r.querySelector("input[type=range]").value};
+    });
+    const from = timeToMin($("ledFrom").value), to = timeToMin($("ledTo").value);
+    const cfg = Object.assign({m, night: +$("ledNight").value, np: +$("ledNp").value, bp: +$("ledBp").value, bs: +$("ledBs").value}, ledTz());
+    if (from >= 0) cfg.from = from;
+    if (to >= 0) cfg.to = to;
+    return cfg;
+  }
+  function renderLed() {
+    if (!led || !led.cfg) return;
+    const c = led.cfg;
+    document.querySelectorAll("#ledList .ledrow").forEach(r => {
+      const v = (c.m || {})[r.dataset.m] || {c: "#000000", p: 0};
+      r.querySelector("input[type=color]").value = v.c;
+      r.querySelector("input[type=range]").value = v.p;
+      ledSwatch(r, v.c, v.p);
+    });
+    $("ledNight").value = String(c.night || 0);
+    $("ledFrom").value = minToTime(c.from); $("ledTo").value = minToTime(c.to);
+    $("ledNp").value = c.np; $("ledBp").value = c.bp;
+    if (![...$("ledBs").options].some(o => +o.value === c.bs)) $("ledBs").add(new Option(c.bs + " Sekunden", String(c.bs)));
+    $("ledBs").value = String(c.bs);
+    ledNightUi();
+    renderLedState();
+  }
+  function ledNightUi() {
+    $("ledPlan").hidden = $("ledNight").value !== "1";
+    document.querySelectorAll(".ledrow.nosw").forEach(r => {
+      const p = +r.querySelector("input").value;
+      r.querySelector(".ledpct").textContent = p ? p + " %" : r.dataset.n === "np" ? "aus" : "nie";
+    });
+  }
+  function renderLedState() {
+    if (!led) return;
+    const c = led.cfg || {}, t = (u) => fmtClock(u) + " Uhr";
+    let s;
+    if (led.night) {
+      s = led.why === "hand" ? "Von Hand an – " + (led.until ? "bis " + t(led.until) + ", dann wieder nach Zeitplan" : "bis du ihn ausschaltest")
+        : led.why === "always" ? "An – eingestellt auf „immer“" : "An laut Zeitplan" + (led.until ? " – bis " + t(led.until) : "");
+    } else if (led.why === "handoff") {
+      s = "Von Hand aus" + (led.until ? " – bis " + t(led.until) + ", dann wieder nach Zeitplan" : "");
+    } else if (c.night === 1) {
+      s = led.min < 0 ? "Aus – der Zeitplan beginnt, sobald das Modul die Uhrzeit kennt (vom Handy oder Flipper)" : "Aus" + (led.until ? " – Nacht ab " + t(led.until) : "");
+    } else s = "Aus";
+    $("ledState").textContent = s;
+    $("ledNow").checked = !!led.night;
+  }
+  async function ledSend(body) {
+    if (ledBusy) { // nur das Neueste nachschicken; Speichern geht dabei nicht verloren
+      ledPending = Object.assign({}, ledPending || {}, body, {save: !!((ledPending && ledPending.save) || body.save)});
+      return;
+    }
+    ledBusy = true;
+    try {
+      const r = await fetch("/api/led", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || "Fehler " + r.status);
+      led = j;
+      $("ledMsg").textContent = "";
+      if (body.reset) renderLed(); else renderLedState();
+    } catch (e) { $("ledMsg").textContent = "LED-Einstellung ging nicht: " + (e.message || "keine Antwort"); }
+    ledBusy = false;
+    if (ledPending) { const b = ledPending; ledPending = null; ledSend(b); }
+  }
+  async function loadLed() {
+    $("ledSec").hidden = true;
+    try {
+      const r = await fetch("/api/led", {cache: "no-store"});
+      const j = await r.json();
+      if (!j.ok || !j.avail) return; // Board ohne LED (nicht das Devboard)
+      led = j;
+      $("ledSec").hidden = false;
+      $("ledMsg").textContent = "";
+      renderLed();
+    } catch (e) {}
+  }
+  $("ledList").addEventListener("input", (e) => {
+    const row = e.target.closest(".ledrow");
+    if (!row) return;
+    ledSwatch(row, row.querySelector("input[type=color]").value, +row.querySelector("input[type=range]").value);
+    ledSend({cfg: ledFromUi(), preview: row.dataset.m});
+  });
+  $("ledList").addEventListener("change", (e) => {
+    const row = e.target.closest(".ledrow");
+    if (row) ledSend({cfg: ledFromUi(), preview: row.dataset.m, save: true});
+  });
+  ["ledNp", "ledBp"].forEach(id => {
+    $(id).addEventListener("input", () => { ledNightUi(); ledSend({cfg: ledFromUi(), preview: "night"}); });
+    $(id).addEventListener("change", () => ledSend({cfg: ledFromUi(), preview: "night", save: true}));
+  });
+  ["ledNight", "ledFrom", "ledTo", "ledBs"].forEach(id => $(id).addEventListener("change", () => {
+    ledNightUi();
+    ledSend({cfg: ledFromUi(), save: true, preview: id === "ledBs" ? "night" : undefined});
+  }));
+  $("ledNow").addEventListener("change", () => { haptic(); ledSend({cfg: ledTz(), now: $("ledNow").checked ? 1 : 0}); });
+  $("ledTryNight").addEventListener("click", () => { haptic(); ledSend({preview: "night"}); toast("Die LED zeigt 6 Sekunden lang die Nacht"); });
+  $("ledReset").addEventListener("click", () => { haptic(); ledSend({reset: true, save: true, preview: "conn"}); });
+
   async function openSheet() {
     releaseAll();
     openSheetEl("sheet");
@@ -3219,6 +3394,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       return;
     }
     closeRoleEdit();
+    loadLed();
     $("saveBtn").disabled = true;
     try {
       const r = await fetch("/api/settings", {cache: "no-store"});

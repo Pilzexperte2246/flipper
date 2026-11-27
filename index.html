@@ -251,6 +251,14 @@ svg{display:block}
 .hist-item a{flex:0 0 auto;font-size:13px;color:var(--accent);text-decoration:none;padding:6px 4px}
 .hist-more{font-size:13px;color:var(--accent);padding:10px 4px;text-align:left}
 .netstate.ok{color:var(--good)}
+.netstate.bad{color:var(--bad)}
+.ntfsteps{margin:6px 0 4px;padding-left:20px;font-size:13px;line-height:1.5;color:var(--muted)}
+.ntfsteps li{margin-bottom:8px}
+.ntfsteps b{color:var(--text)}
+.ntfsteps code{font:12px var(--mono);color:var(--text);background:var(--bg);border-radius:6px;padding:1px 5px;word-break:break-all}
+details.ntfhelp{margin:4px 0 10px;border:1px solid var(--line);border-radius:11px;padding:0 12px}
+details.ntfhelp summary{padding:11px 0;font-size:14px;font-weight:600;cursor:pointer}
+.ntfyaml{white-space:pre;word-break:normal;max-height:220px;overflow:auto;font-size:11px;line-height:1.45;margin:6px 0 0;user-select:all;-webkit-user-select:all}
 .netlist{display:flex;flex-direction:column;gap:2px;background:var(--bg);border-radius:11px;padding:4px;margin-bottom:12px}
 .netlist:empty{display:none}
 .netrow{display:flex;align-items:center;gap:8px;padding:7px 6px 7px 10px;border-radius:8px}
@@ -711,6 +719,107 @@ svg{display:block}
   </div>
   <div style="height:6px"></div>
   </div>
+
+  <div data-need="admin"><div id="ntfSec" hidden>
+  <h3>Benachrichtigungen</h3>
+  <div class="toggle"><div>Meldungen aufs Handy<small>Bei schwachem Flipper-Akku und wenn das Modul nach einer Unterbrechung wieder Internet hat. Mit GitHub meldet außerdem GitHub selbst, wenn sich das Modul nicht mehr meldet (Internet weg, Strom weg oder abgestürzt). Braucht ein WLAN mit Internet.</small></div><input type="checkbox" id="fNtfOn"></div>
+  <div id="ntfCfg">
+    <div style="height:10px"></div>
+    <div class="field"><label for="fNtfSvc">Über</label>
+      <select id="fNtfSvc"><option value="0">GitHub-App (privates Repository)</option><option value="1">ntfy-App (einfacher, ohne Konto)</option></select></div>
+    <div id="ntfGh">
+      <div class="field"><label for="fNtfRepo">Privates Repository</label><input id="fNtfRepo" maxlength="100" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="dein-name/flipper-meldungen"></div>
+      <div class="field"><label for="fNtfToken" id="ntfTokLabel">Token</label><input id="fNtfToken" type="password" maxlength="127" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="github_pat_…"></div>
+      <details class="ntfhelp" id="ntfHelp"><summary>Einrichten (einmalig, ca. 5 Minuten)</summary>
+        <ol class="ntfsteps">
+          <li>Auf <b>github.com</b> ein neues Repository anlegen, z. B. <code>flipper-meldungen</code>: <b>Private</b> wählen (die Meldungen soll niemand sonst lesen) und „Add a README file“ anhaken.</li>
+          <li>Im Repository <b>Add file → Create new file</b>, als Namen <code>.github/workflows/flipper.yml</code> eintippen und diesen Inhalt einfügen, dann <b>Commit changes</b>:
+            <pre class="info ntfyaml" id="ntfYaml"></pre>
+            <div class="loc-actions"><button class="btn small" id="ntfYamlCopy" type="button">Inhalt kopieren</button></div></li>
+          <li>Token erstellen: Profilbild → <b>Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token</b>. Ablauf so lang wie möglich, <b>Only select repositories</b> → nur dieses Repository. Unter <b>Permissions</b> (Repository): <b>Contents</b> und <b>Variables</b> je auf <b>Read and write</b>. Mehr nicht.</li>
+          <li>Repository (<code>name/repository</code>) und Token oben eintragen – den Token nur hier, nirgends sonst hineinkopieren. <b>Speichern &amp; neu starten</b>, danach <b>Test senden</b>.</li>
+          <li>In der <b>GitHub-App</b> am Handy angemeldet sein und Mitteilungen erlauben: Profil → ⚙️ → <b>Notifications</b> → Push für <b>Direct mentions</b> an.</li>
+        </ol>
+        <p class="note">Die Meldungen landen als Kommentar mit @-Erwähnung im Issue „Flipper-Meldungen“ – das schickt die GitHub-App als Push. Der stündliche Ablauf (ob sich das Modul noch meldet) braucht rund 720 der rund 2.000 kostenlosen Actions-Minuten im Monat (GitHub Free, privates Repository). Läuft der Token ab, kommt „meldet sich nicht mehr“ – dann einen neuen eintragen.</p>
+      </details>
+    </div>
+    <div id="ntfNt">
+      <div class="field"><label for="fNtfUrl">ntfy-Adresse mit deinem Thema</label><input id="fNtfUrl" style="font-feature-settings:'calt' 0" maxlength="127" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://ntfy.sh/flipper-…"></div>
+      <div class="loc-actions" style="margin:-4px 0 10px"><button class="btn small" id="ntfTopic" type="button">Zufälliges Thema</button><button class="btn small" id="ntfTopicCopy" type="button">Thema kopieren</button></div>
+      <p class="note">App <b>ntfy</b> installieren, Mitteilungen erlauben und mit <b>+</b> dasselbe Thema abonnieren (nur der Teil nach <code>ntfy.sh/</code>). Wer das Thema kennt, liest mit – nimm ein zufälliges. „Meldet sich nicht mehr“ geht mit ntfy nicht (ohne Internet kann das Modul nichts senden), nur „wieder online“.</p>
+      <div style="height:12px"></div>
+    </div>
+    <div class="field"><label for="fNtfBat">Flipper-Akku melden bei</label>
+      <select id="fNtfBat"><option value="0">nie</option><option value="5">5 % oder weniger</option><option value="10">10 % oder weniger</option><option value="15">15 % oder weniger</option><option value="20">20 % oder weniger</option><option value="25">25 % oder weniger</option><option value="30">30 % oder weniger</option><option value="40">40 % oder weniger</option><option value="50">50 % oder weniger</option></select></div>
+    <div class="toggle"><div>Internet weg und wieder da<small>„Wieder online“ meldet das Modul selbst, mit der Dauer der Unterbrechung (ab 15 Minuten). Schläft das Modul mit Absicht oder schaltest du es aus, kommt keine Meldung.</small></div><input type="checkbox" id="fNtfNet"></div>
+    <div style="height:10px"></div>
+    <div class="netstate" id="ntfState">–</div>
+    <button class="btn ghost" id="ntfTest" type="button">Test senden</button>
+    <script type="text/plain" id="ntfYamlSrc">
+# Flipper-Modul -> Push über die GitHub-App
+# (Anleitung in der Fernbedienung unter ⚙️ -> Benachrichtigungen)
+name: Flipper-Meldungen
+on:
+  repository_dispatch:
+    types: [flipper]       # Meldung vom Modul (Akku, wieder online, Test)
+  schedule:
+    - cron: "23 * * * *"   # stündlich: meldet sich das Modul noch?
+  workflow_dispatch:       # von Hand starten = Test
+permissions:
+  issues: write
+jobs:
+  melden:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/github-script@v8
+        env:
+          SEEN: ${{ vars.FLIPPER_SEEN }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const ev = context.eventName;
+            let s = {};
+            try { s = JSON.parse(process.env.SEEN || "{}"); } catch (e) {}
+            const pad = (n) => String(n).padStart(2, "0");
+            const when = (t) => {
+              const d = new Date((t + (s.o || 0) * 60) * 1000);
+              return `${pad(d.getUTCDate())}.${pad(d.getUTCMonth() + 1)}. ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+            };
+            const name = s.n ? `„${s.n}“ ` : "";
+            let text = "", mark = "";
+            if (ev === "repository_dispatch") {
+              text = String((context.payload.client_payload || {}).text || "").slice(0, 500);
+            } else if (ev === "workflow_dispatch") {
+              const st = { on: "online", sleep: "schläft", off: "aus" }[s.s] || "?";
+              text = "🧪 Test aus GitHub: Meldungen kommen an. " + (s.t
+                ? `Letztes Lebenszeichen vom Modul ${name}kam ${when(s.t)} Uhr (${st}).`
+                : "Vom Modul kam noch kein Lebenszeichen.");
+            } else {
+              const late = Math.floor(Date.now() / 1000) - (s.t || 0);
+              if (s.s !== "on" || !s.t || late < (s.i || 600) * 3 + 600) return core.info("Alles gut.");
+              mark = `<!-- flipper-offline:${s.t} -->`;
+              text = `📴 Flipper-Modul ${name}meldet sich nicht mehr – zuletzt online ${when(s.t)} Uhr` +
+                (s.b >= 0 ? ` (Flipper-Akku ${s.b} %)` : "") + ". Internet weg, Strom weg oder abgestürzt?";
+            }
+            if (!text) return;
+            const title = "Flipper-Meldungen";
+            const open = await github.paginate(github.rest.issues.listForRepo, { owner, repo, state: "open", per_page: 100 });
+            let issue = open.find((i) => i.title === title && !i.pull_request);
+            if (!issue) issue = (await github.rest.issues.create({ owner, repo, title,
+              body: "Hier schreibt das Flipper-Modul seine Meldungen hinein – mit @-Erwähnung, damit die GitHub-App sie als Push schickt. Bitte offen lassen." })).data;
+            if (mark) {
+              const since = new Date(s.t * 1000).toISOString();
+              const old = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number: issue.number, since, per_page: 100 });
+              if (old.some((c) => (c.body || "").includes(mark))) return core.info("Schon gemeldet.");
+            }
+            await github.rest.issues.createComment({ owner, repo, issue_number: issue.number,
+              body: `@${owner} ${text}` + (mark ? `\n${mark}` : "") });
+</script>
+    <p class="note">Gilt nach „Speichern &amp; neu starten“. Meldungen ohne Internet warten (bis zu 8) und kommen mit Uhrzeit, sobald es wieder da ist. Der Akku wird dafür alle 5 Minuten nachgelesen, auch wenn die Verbindung zum Flipper ruht.</p>
+  </div>
+  <div style="height:6px"></div>
+  </div></div>
 
   <div data-need="admin">
 
@@ -3128,8 +3237,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   });
   $("rmtOpen").addEventListener("click", () => { if (rmtLinkUrl) window.open(rmtLinkUrl, "_blank"); });
   $("rmtShare").addEventListener("click", () => { navigator.share({title: "Flipper Fernzugriff", url: rmtLinkUrl || undefined, text: rmtLinkUrl ? undefined : $("rmtLink").textContent}).catch(() => {}); });
-  $("rmtCopy").addEventListener("click", async () => {
-    const t = $("rmtLink").textContent;
+  async function copyText(t) {
     try { await navigator.clipboard.writeText(t); }
     catch (e) { // ohne https gibt es keine Zwischenablage-API: klassisch über ein Textfeld
       const ta = document.createElement("textarea"); ta.value = t; ta.style.position = "fixed"; ta.style.opacity = "0";
@@ -3137,7 +3245,65 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       try { document.execCommand("copy"); } catch (x) {}
       ta.remove();
     }
-    toast("Kopiert");
+  }
+  $("rmtCopy").addEventListener("click", async () => { await copyText($("rmtLink").textContent); toast("Kopiert"); });
+
+  // ---- Benachrichtigungen (GitHub-App oder ntfy) ----
+  let ntfAvail = false, ntfTokSet = false, ntfPoll = 0;
+  $("ntfYaml").textContent = $("ntfYamlSrc").textContent.replace(/^\n/, "");
+  function updateNtfUi() {
+    const gh = $("fNtfSvc").value === "0";
+    $("ntfCfg").hidden = !$("fNtfOn").checked;
+    $("ntfGh").hidden = !gh; $("ntfNt").hidden = gh;
+    $("ntfTokLabel").textContent = ntfTokSet ? "Token (gespeichert – leer lassen = unverändert)" : "Token";
+  }
+  ["fNtfOn", "fNtfSvc"].forEach(id => $(id).addEventListener("change", updateNtfUi));
+  function ntfWhen(t) {
+    return new Date(t * 1000).toLocaleString("de-DE", {day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit"});
+  }
+  function ntfShowState(j) {
+    const el = $("ntfState");
+    el.className = "netstate";
+    const q = j.queued ? " " + (j.queued === 1 ? "1 Meldung wartet" : j.queued + " Meldungen warten") + " auf Internet." : "";
+    if (!j.on) el.textContent = "Startet nach „Speichern & neu starten“ (wenn alles eingetragen ist).";
+    else if (!j.t) el.textContent = "Bereit – bisher nichts gesendet." + q;
+    else {
+      el.className = "netstate " + (j.last_ok ? "ok" : "bad");
+      const m = j.msg || "–";
+      el.textContent = (j.last_ok ? "Zuletzt " : "Problem ") + "(" + ntfWhen(j.t) + "): " + m + (q && !/[.!?…]$/.test(m) ? "." : "") + q;
+    }
+  }
+  async function loadNtf() {
+    try {
+      const r = await fetch("/api/notify", {cache: "no-store"});
+      const j = await r.json();
+      if (j.ok) ntfShowState(j);
+    } catch (e) {}
+  }
+  $("ntfTest").addEventListener("click", async () => {
+    haptic();
+    try {
+      const r = await fetch("/api/notify", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({test: true})});
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || "Fehler " + r.status);
+      ntfShowState(j);
+      toast("Test ist unterwegs – sollte gleich auf dem Handy sein");
+      clearTimeout(ntfPoll);
+      let n = 0;
+      const again = () => { loadNtf(); if (++n < 4) ntfPoll = setTimeout(again, 5000); };
+      ntfPoll = setTimeout(again, 4000);
+    } catch (e) { toast(String(e.message || e), true); }
+  });
+  $("ntfYamlCopy").addEventListener("click", async () => { await copyText($("ntfYaml").textContent); toast("Inhalt kopiert"); });
+  $("ntfTopic").addEventListener("click", () => {
+    const a = new Uint8Array(14), abc = "abcdefghijkmnpqrstuvwyz23456789"; // ohne l, o, x, 0, 1 (verwechselbar; x wird zwischen Ziffern zu ×)
+    crypto.getRandomValues(a);
+    $("fNtfUrl").value = "https://ntfy.sh/flipper-" + Array.from(a, b => abc[b % abc.length]).join("");
+  });
+  $("ntfTopicCopy").addEventListener("click", async () => {
+    const t = $("fNtfUrl").value.trim().replace(/^https:\/\/[^/]+\//, "");
+    if (!t) return toast("Erst ein Thema eintragen", true);
+    await copyText(t); toast("Thema kopiert");
   });
 
   const REASONS = {2: "Anmeldung abgelaufen", 15: "falsches Passwort?", 201: "WLAN nicht gefunden", 202: "Anmeldung abgelehnt", 204: "falsches Passwort?", 205: "Verbindung fehlgeschlagen", 210: "WLAN nicht gefunden", 211: "falsches Passwort?"};
@@ -3490,6 +3656,17 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
       $("fLocHist").checked = j.loc_hist !== false;
       $("fLocDay").value = j.loc_day == null ? 300 : j.loc_day; $("fLocMonth").value = j.loc_month == null ? 10000 : j.loc_month;
       updateLocUi();
+      ntfAvail = !!j.ntf_avail;
+      $("ntfSec").hidden = !ntfAvail;
+      $("fNtfOn").checked = !!j.ntf_on;
+      $("fNtfSvc").value = String(j.ntf_svc || 0);
+      $("fNtfRepo").value = j.ntf_repo || ""; $("fNtfToken").value = ""; ntfTokSet = !!j.ntf_token_set;
+      $("fNtfUrl").value = j.ntf_url || "";
+      $("fNtfBat").value = String(j.ntf_bat == null ? 20 : j.ntf_bat);
+      $("fNtfNet").checked = j.ntf_net !== false;
+      $("ntfHelp").open = !j.ntf_on;
+      updateNtfUi();
+      if (ntfAvail) loadNtf();
       $("rmtLinkBox").hidden = true;
       updateRemoteUi(); applyPerms();
       devState = null; renderDevices(); loadDevices();
@@ -3575,6 +3752,22 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     body.loc_hist = $("fLocHist").checked;
     body.loc_day = Math.round(Number($("fLocDay").value));
     body.loc_month = Math.round(Number($("fLocMonth").value));
+    if (ntfAvail) {
+      body.ntf_on = $("fNtfOn").checked;
+      body.ntf_svc = Number($("fNtfSvc").value);
+      body.ntf_repo = $("fNtfRepo").value.trim().replace(/^https?:\/\/github\.com\//i, "").replace(/\.git$/, "").replace(/\/+$/, "");
+      const tok = $("fNtfToken").value.trim();
+      if (tok) body.ntf_token = tok;
+      body.ntf_url = $("fNtfUrl").value.trim();
+      body.ntf_bat = Number($("fNtfBat").value);
+      body.ntf_net = $("fNtfNet").checked;
+      if (body.ntf_repo && !/^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/.test(body.ntf_repo)) return msg("GitHub-Repository: als „name/repository“ eintragen.", "err");
+      if (tok && !/^[A-Za-z0-9_-]{20,127}$/.test(tok)) return msg("Der GitHub-Token sieht nicht richtig aus (beginnt meist mit github_pat_, ohne Leerzeichen).", "err");
+      if (body.ntf_url && !/^https:\/\/[^/]+\/[^/]/.test(body.ntf_url)) return msg("ntfy-Adresse: https://ntfy.sh/dein-thema (mit Thema).", "err");
+      if (body.ntf_on && !body.sta_enabled) return msg("Benachrichtigungen brauchen Internet: oben „Mit WLAN verbinden“ einschalten.", "err");
+      if (body.ntf_on && body.ntf_svc === 0 && (!body.ntf_repo || !(tok || ntfTokSet))) return msg("GitHub-Benachrichtigungen: Repository und Token eintragen.", "err");
+      if (body.ntf_on && body.ntf_svc === 1 && !body.ntf_url) return msg("ntfy: Adresse mit deinem Thema eintragen (oder „Zufälliges Thema“).", "err");
+    }
     if (!(body.loc_day >= 10 && body.loc_day <= 10000)) return msg("Standort: höchstens pro Tag 10 bis 10.000 Abfragen.", "err");
     if (!(body.loc_month >= 100 && body.loc_month <= 1000000)) return msg("Standort: pro Monat 100 bis 1.000.000 Abfragen.", "err");
     if (body.loc_on && body.loc_service === 1 && !body.loc_key) return msg("Die Google-Ortung braucht einen API-Schlüssel – oder nimm beaconDB (gratis).", "err");
